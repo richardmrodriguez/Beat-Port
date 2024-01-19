@@ -6,8 +6,6 @@
 ##  Parts copyright © 2019-2023 Lauri-Matti Parppei. All rights reserved.
 
 ##  Relased under GPL
-
-
  
 '''This code was originally based on Hendrik Noeller's work.
 It is heavily modified for Beat, and not a lot of Hendrik's original code remains.
@@ -29,61 +27,77 @@ A lot of stuff could/should be moved to the line class, I guess, but that's star
 just as bad, he he.
 
 Dread lightly, dear friend.'''
- 
 
 
-# import "NSString+CharacterControl.h"
-# import "NSMutableIndexSet+Lowest.h"
-# import "NSIndexSet+Subset.h"
+import uuid
 
-from line import Line
-from outline_scene import OutlineScene
+from helper_dataclasses import LocationAndLength as loc_len
+from helper_funcs import *
+
+from line import Line, LineType
+from parser_data_classes.formatting_characters import FormattingCharacters as fc
+# from outline_scene import OutlineScene
+# from outline_changes import OutlineChanges
+
 # import <BeatParsing/BeatParsing-Swift.h> # ? doesn't exist in the repoo currently
-import "ContinuousFountainParser+Preprocessing.h" # another circular import? or do I just not understand categories in Objective-C?
-
-NEW_OUTLINE: bool = True
+# import "ContinuousFountainParser+Preprocessing.h" # another circular import? or do I just not understand categories in Objective-C?
 
 #pragma mark - Parser
 
-# @interface ContinuousFountainParser()
-
-changeInOutline: bool
-outlineChanges: OutlineChanges()
-changedOutlineElements: list
-n
-### The line which was last edited. We're storing this when asking for a line at caret position.
-lastEditedLine: Line
-### An index for the last fetched line result when asking for lines in range
-lastLineIndex: int
-### The range which was edited most recently.
-editedRange: range #sytnax hurty - RANGES are different in python!
-
-## Title page parsing
-openTitlePageKey: str
-previousTitlePageKey: str
-
-## Static parser flag
-nonContinuous: bool
-
-## Cached line set for UUID creation
-cachedLines: list # syntax hurty: MUTABLE SETS and UUID
-
-macros: BeatMacroParser()
-
-##
-prevLineAtLocation: Line
-
-
 class ContinuousFountainParser:
+        
+    NEW_OUTLINE: bool = True
+    changeInOutline: bool
+    outlineChanges: any # OutlineChanges
+    changedOutlineElements: list
 
-    patterns: dict = []
+    ### The line which was last edited. We're storing this when asking for a line at caret position.
+    lastEditedLine: Line
+    ### An index for the last fetched line result when asking for lines in range
+    lastLineIndex: int
+    ### The range which was edited most recently.
+    editedRange: loc_len
 
+    ## Title page parsing
+    openTitlePageKey: str
+    previousTitlePageKey: str
 
-    #pragma mark - Initializers
+    ## Static parser flag
+    nonContinuous: bool
+
+    ## Cached line set for UUID creation
+    cachedLines: list # syntax hurty: MUTABLE SETS and UUID
+
+    macros: BeatMacroParser
+    titlePage: list
+    ##
+    prevLineAtLocation: Line
+
+    # pragma mark - Initializers
+    def __init__(self):
+   
+        self.lines = []
+        self.outline = []
+        self.changedIndices = []
+        self.titlePage = []
+        self.storylines = []
+        
+        # self.delegate = delegate
+        # self.nonContinuous = nonContinuous
+        # self.staticDocumentSettings = settings
+        
+        ## Inform that this parser is STATIC and not continuous (wtf, why is this done using dual values?)
+        '''if (self.nonContinuous):
+            self.staticParser = True
+        else:
+            self.staticParser = False'''
+        
+        # self.parseText(string)
+        # [self updateMacros]
 
     ### Extracts the title page from given string
-    def titlePageForString(string: str) -> list:
-        rawLines: list[str] = string.split("\n")
+    def titlePageForString(self, string: str) -> list:
+        rawLines: list[str] = string.splitlines()
         
         if rawLines.count == 0: 
              return []
@@ -94,74 +108,27 @@ class ContinuousFountainParser:
         
         for l in rawLines:
             ## Break at empty line
-            text += l += "\n"
+            text += l + "\n"
             if l == "":
                 break
         
         text += "\n"
         
-        parser = [ContinuousFountainParser.alloc initWithString:text]
-        parser.updateMacros() ## Resolve macros
-        return parser.titlePage
+        parser = ContinuousFountainParser()
+        # parser.updateMacros() ## Resolve macros
+        return parser.titlePage # what does returning this title page do?
     
 
-    def ContinuousFountainParser*)initStaticParsingWithString:(NSString*)string settings:(BeatDocumentSettings*)settings
-    {
-        return [self initWithString:string delegate:None settings:settings nonContinuous:YES]
-    }
-    def ContinuousFountainParser*)initWithString:(NSString*)string delegate:(id<ContinuousFountainParserDelegate>)delegate nonContinuous:(bool)nonContinuous
-    {
-        return [self initWithString:string delegate:delegate settings:None nonContinuous:nonContinuous]
-    }
-    def ContinuousFountainParser*)initWithString:(NSString*)string delegate:(id<ContinuousFountainParserDelegate>)delegate
-    {
-        return [self initWithString:string delegate:delegate settings:None]
-    }
-    def ContinuousFountainParser*)initWithString:(NSString*)string delegate:(id<ContinuousFountainParserDelegate>)delegate settings:(BeatDocumentSettings*)settings
-    {
-        return [self initWithString:string delegate:delegate settings:settings nonContinuous:NO]
-    }
-    def ContinuousFountainParser*)initWithString:(NSString*)string delegate:(id<ContinuousFountainParserDelegate>)delegate settings:(BeatDocumentSettings*)settings nonContinuous:(bool)nonContinuous
-    {
-        self = [super init]
-        
-        if (self) {
-            _lines = NSMutableArray.array
-            _outline = NSMutableArray.array
-            _changedIndices = NSMutableIndexSet.indexSet
-            _titlePage = NSMutableArray.array
-            _storylines = NSMutableSet.set
-            
-            _delegate = delegate
-            _nonContinuous = nonContinuous
-            _staticDocumentSettings = settings
-            
-            ## Inform that this parser is STATIC and not continuous (wtf, why is this done using dual values?)
-            if (_nonContinuous) _staticParser = YES
-            else _staticParser = NO
-            
-            [self parseText:string]
-            [self updateMacros]
-        }
-        
-        return self
-    }
-    def ContinuousFountainParser*)initWithString:(NSString*)string
-    {
-        return [self initWithString:string delegate:None]
-    }
 
-
-    #pragma mark - Document setting getter
+    #pragma mark - Document setting getter  ---- BACKBURNER
 
     ### Returns either document settings OR static document settings. Note that if static document settings are provided, they are preferred.
     ### TODO: Perhaps the parser should hold the document settings and read them when originally parsing the document? This would be much more sensible.
-    def BeatDocumentSettings*)documentSettings
+    '''def BeatDocumentSettings*)documentSettings
     {
         if (self.staticDocumentSettings != None) return self.staticDocumentSettings
         else return self.delegate.documentSettings
-    }
-
+    }'''
 
     #pragma mark - Saved file processing
 
@@ -178,12 +145,12 @@ class ContinuousFountainParser:
             type: LineType = line.type
         
             ## Make some lines uppercase
-            if ((type == heading or type == transitionLine) and
+            if ((type == LineType.heading or type == LineType.transitionLine) and
                 line.numberOfPrecedingFormattingCharacters == 0):
                  string = string.upper
             
             ## Ensure correct whitespace before elements
-            if ((line.isAnyCharacter or line.type == heading) and
+            if ((line.isAnyCharacter or line.type == LineType.heading) and
                 previousLine.string.length > 0):
                 content += "\n"
                 
@@ -208,7 +175,7 @@ class ContinuousFountainParser:
             if (line != self.lines[-1]):
                 string += (line.string + "\n")
             else:
-                string += ine.string
+                string += line.string
             
         return string
     
@@ -219,7 +186,7 @@ class ContinuousFountainParser:
     #pragma mark Bulk parsing
 
     def parseText(self, text: str):
-        _lines = []
+        self.lines = []
         
         if (text == None): text = ""
         text = text.replace("\r\n", "\n") ## Replace MS Word/Windows line breaks with macOS ones # NOTE: Will this break text files on windows if we leave this?
@@ -232,18 +199,18 @@ class ContinuousFountainParser:
         previousLine: Line
         
         for rawLine in lines:
-            index: int = len(_lines)
-            line: Line = [[Line alloc] initWithString:rawLine position:position parser:self] # syntax hurty
+            index: int = len(self.lines)
+            line: Line = Line(string=rawLine, position=position, parser=self)
             self.lines.append(line)
             
-            self.parseTypeAndFormattingForLine(line, atIndex=index)
+            self.parseTypeAndFormattingForLine(line, index=index)
             
             ## Quick fix for mistaking an ALL CAPS action for a character cue
-            if (previousLine.type == character and (line.string.length < 1 or line.type == empty)):
+            if (previousLine.type == LineType.character and (line.string.length < 1 or line.type == LineType.empty)):
                 
                 previousLine.type = self.parseLineTypeFor(line, atIndex=(index - 1))
-                if (previousLine.type == character): 
-                    previousLine.type = action
+                if (previousLine.type == LineType.character): 
+                    previousLine.type = LineType.action
             
                     
             position += rawLine.length + 1; ## +1 for newline character # NOTE: since this code adds 1 for newlines, we should NOT use 'keepends' when using str.splitlines()
@@ -251,16 +218,16 @@ class ContinuousFountainParser:
         
         
         ## Reset outline
-        _changeInOutline = True
-        self.updateOutline()
-        self.outlineChanges = OutlineChanges() # ? What or where is OutlineChanges? Is it a struct or a class?
+        self.changeInOutline = True
+        # self.updateOutline()
+        # self.outlineChanges = OutlineChanges() # ? What or where is OutlineChanges? Is it a struct or a class?
         
         ## Reset changes (to force the editor to reformat each line)
 
-        self.changedIndices.addIndexesInRange(range(0, len(self.lines))) # syntax hurty # RANGE
+        self.changedIndices.update(range(len(self.lines))) 
         
         ## Set identifiers (if applicable)
-        self.setIdentifiersForOutlineElements(self.documentSettings.get(DocSettingHeadingUUIDs)) # syntax hurty
+        # self.setIdentifiersForOutlineElements(self.documentSettings.get(DocSettingHeadingUUIDs)) # syntax hurty
     
 
     ## This sets EVERY INDICE as changed.
@@ -273,7 +240,8 @@ class ContinuousFountainParser:
     
 
 
-    #pragma mark - Continuous Parsing
+    # HOT RELOAD
+    #pragma mark - Continuous Parsing ---- BACKBURNER
 
     '''
     
@@ -295,7 +263,7 @@ class ContinuousFountainParser:
     
     '''
 
-    def parseChangeInRange(self, _range: range, withString=""): # NOTE: param name "range" shadowed the range type in python, changed it to _range
+    '''def parseChangeInRange(self, _range: loc_len, withString=""): # NOTE: param name "range" shadowed the range type in python, changed it to _range
     
         if (_range.location == None):
             return ## This is for avoiding crashes when plugin developers are doing weird things
@@ -323,6 +291,7 @@ class ContinuousFountainParser:
         }
     
 
+    
     ### Ensures that the given line is parsed correctly. Continuous parsing only. A bit confusing to use.
     def ensureDialogueParsingFor(self, line: Line):
         if (not line.isAnyCharacter): return
@@ -339,21 +308,22 @@ class ContinuousFountainParser:
             nextLine = lines[i + 1]
         
         ## Let's not do anything, if we are currently editing these lines.
-        if (nextLine != None and nextLine.string.length == 0 and
-            not NSLocationInRange(_delegate.selectedRange.location, nextLine.range) and
-            not NSLocationInRange(_delegate.selectedRange.location, line.range) and
+        if (nextLine != None and nextLine.string.length == 0 and # syntax hurty: RANGE
+            not NSLocationInRange(self.selectedRange.location, line._range) and 
+            not NSLocationInRange(self.selectedRange.location, nextLine._range) and
             line.numberOfPrecedingFormattingCharacters == 0
             ):
             
-            line.type = action
+            line.type = LineType.action
             self.changedIndices(addIndex=i)
-            [_delegate applyFormatChanges] # syntax hurty : what the FUCK is a delegate
+            # [_delegate applyFormatChanges] # syntax hurty : what the FUCK is a delegate
+            self.applyFormatChanges'''
         
 
+    # HOT RELOAD
+    #pragma mark Parsing additions  ---- BACKBURNER
 
-    #pragma mark Parsing additions
-
-    def NSIndexSet*)parseAddition:(NSString*)string atPosition:(NSUInteger)position
+    '''def NSIndexSet*)parseAddition:(NSString*)string atPosition:(NSUInteger)position
     {
         NSMutableIndexSet *changedIndices = NSMutableIndexSet.new
         
@@ -371,13 +341,13 @@ class ContinuousFountainParser:
         
         NSInteger currentRange = -1
         
-        for (NSInteger i=0; i<string.length; i++) {
+        for (NSInteger i=0; i<string.length; i += 1) {
             if (currentRange < 0) currentRange = i
             
             unichar chr = [string characterAtIndex:i]
             
             if (chr == '\n') {
-                NSString* addedString = [string substringWithRange:NSMakeRange(currentRange, i - currentRange)]
+                NSString* addedString = [string substringWithRange:loc_len(currentRange, i - currentRange)]
                 line.string = [line.string stringByAppendingString:addedString]
                 
                 if (lineIndex < self.lines.count - 1) {
@@ -389,7 +359,7 @@ class ContinuousFountainParser:
                 [self addLineWithString:@"" atPosition:NSMaxRange(line.range) lineIndex:lineIndex+1]
                 
                 ## Increment current line index and reset inspected range
-                lineIndex++
+                lineIndex += 1
                 currentRange = -1
                 
                 ## Set current line
@@ -405,15 +375,15 @@ class ContinuousFountainParser:
         [self adjustLinePositionsFrom:lineIndex]
         
         ## [self report]
-        [changedIndices addIndexesInRange:NSMakeRange(changedIndices.firstIndex + 1, lineIndex - changedIndices.firstIndex)]
+        [changedIndices addIndexesInRange:loc_len(changedIndices.firstIndex + 1, lineIndex - changedIndices.firstIndex)]
         
         return changedIndices
-    }
+    }'''
 
+    # HOT RELOAD
+    #pragma mark Parsing removals ---- BACKBURNER
 
-    #pragma mark Parsing removals
-
-    def NSIndexSet*)parseRemovalAt:(NSRange)range {
+    '''def NSIndexSet*)parseRemovalAt:(NSRange)range {
         NSMutableIndexSet *changedIndices = NSMutableIndexSet.new
         
         ## Note: First and last index can be the same, if we are parsing on the same line
@@ -438,7 +408,7 @@ class ContinuousFountainParser:
             omitIn = line.omitIn
             
             NSRange intersection = NSIntersectionRange(line.range, range)
-            NSRange localRange = NSMakeRange(intersection.location - line.position, intersection.length)
+            NSRange localRange = loc_len(intersection.location - line.position, intersection.length)
             
             if (range.length <= 0) {
                 break
@@ -455,7 +425,7 @@ class ContinuousFountainParser:
                 range.length -= localRange.length; ## Subtract from full range
                 
                 ## Move on to next line (even if we only wanted to remove one character)
-                i++
+                i += 1
             }
         }
         
@@ -487,13 +457,13 @@ class ContinuousFountainParser:
         }
         
         return changedIndices
-    }
+    }'''
 
-
-    #pragma mark Add / remove lines
+    # EDITING / HOT RELOAD
+    #pragma mark Add / remove lines ---- BACKBURNER
 
     ### Removes a line from the parsed content and decrements positions of other lines
-    def removeLineAtIndex(self, index: int):
+    '''def removeLineAtIndex(self, index: int):
         if (index < 0 or index >= self.lines.count): return
         
         line: Line = self.lines[index]
@@ -509,50 +479,48 @@ class ContinuousFountainParser:
         ## Reset cached line
         _lastEditedLine = None
         if (line == _prevLineAtLocation): 
-            _prevLineAtLocation = None
+            _prevLineAtLocation = None'''
     
-
+    # EDITING / HOT RELOAD
     ### Adds a new line into the parsed content and increments positions of other lines
-    def addLineWithString(self, string: str, position: int, index: int):
+    '''def addLineWithString(self, string: str, position: int, index: int):
         newLine: Line = [Line.alloc initWithString(string=string, position=position, parser=self)]
         
         self.lines.insert(index, newLine)
         self.incrementLinePositionsFromIndex(index+1, amount=1) # syntax hurty: investigate this, this might be wrong now
         
         ## Reset cached line
-        _lastEditedLine = None
+        _lastEditedLine = None'''
     
 
-
-    #pragma mark - Correcting parsed content for existing lines
+    # EDITING / HOT RELOAD
+    #pragma mark - Correcting parsed content for existing lines  -= 1- BACKBURNER
 
     ### Intermediate method for `corretParsesInLines` which first finds the indices for line objects and then passes the index set to the main method.
-    def correctParsesForLines(lines: list):
-        NSMutableIndexSet *indices = NSMutableIndexSet.new
+    '''def correctParsesForLines(self, lines: list):
+        indices: list = []
         
-        for line in lines: 
-            i: int = [lines indexOfObject:line]
-            if (i != None): [indices addIndex:i]
+        for i in range(0, len(lines)): 
+            indices.append(i)
         
-        
-        [self.correctParsesInLines:indices]
+        self.correctParsesInLines(indices)
     
 
     ### Corrects parsing in given line indices
-    def correctParsesInLines((NSMutableIndexSet*)lineIndices):
-        while (lineIndices.count > 0) { # syntax hurty
-            [self correctParseInLine:lineIndices.lowestIndex indicesToDo:lineIndices]
-        }
+    def correctParsesInLines(self, lineIndices: list):
+        for n in range(0, len(lineIndices)):
+            self.correctParseInLine(0, indicesToDo=lineIndices)
+        
     
 
     ### Corrects parsing in a single line. Once done, it will be removed from `indices`, but note that new indices might be added in the process.
-    def correctParseInLine(index: int, indicesToDo:[]): # syntax hurty: indicesToDo: NSMutableIndexSet
-    
+    def correctParseInLine(self, index: int, indices: list):
         ## Do nothing if we went out of range.
         ## Note: for code convenience and clarity, some methods can ask to reformat lineIndex-2 etc.,
         ## so this check is needed.
-        if (index < 0) or (index == NSNotFound) or (index >= self.lines.count):
-            [indices removeIndex:index]
+
+        if (index < 0) or (index == None) or (index >= len(self.lines)):
+            indices.pop(index)
             return
         
         
@@ -589,7 +557,7 @@ class ContinuousFountainParser:
         } else {
             ## In other case, let's see if we should update the scene
             if ((currentLine.isOutlineElement and (oldType == section or oldType == heading)) or
-                (oldNotes not = None and not [oldNotes isEqualToIndexSet:currentLine.noteRanges]) or
+                (oldNotes != None and not [oldNotes isEqualToIndexSet:currentLine.noteRanges]) or
                 not (NSEqualRanges(oldMarker, currentLine.markerRange)) or
                 currentLine.noteRanges.count > 0 or
                 currentLine.type == synopse or
@@ -683,14 +651,15 @@ class ContinuousFountainParser:
                     [self correctParseInLine:index+1 indicesToDo:indices]
                 }
             }
-        }
+        }'''
 
 
-    #pragma mark - Incrementing / decrementing line positions
-
+    # EDITING
+    #pragma mark - Incrementing / decrementing line positions  -= 1- BACKBURNER
+    
     ### A replacement for the old, clunky `incrementLinePositions` and `decrementLinePositions`. Automatically adjusts line positions based on line content.
     ### You still have to make sure that you are parsing correct stuff, though.
-    def adjustLinePositionsFromm(self, index: int):
+    '''def adjustLinePositionsFromm(self, index: int):
         line: Line = self.lines[index]
         delta: int = NSMaxRange(line.range) # syntax hurty : what is this max range you speak of
         index += 1
@@ -715,19 +684,17 @@ class ContinuousFountainParser:
         while index < len(self.lines):
             line: Line = self.lines[index]
             line.position -= amount # syntax hurty : is this a NSRange position, or the line's position in the array?
-            index += 1
+            index += 1'''
         
-    
-
-
-    #pragma mark - Macros
+    # ??? Don't know what these do
+    #pragma mark - Macros  -= 1- BACKBURNER
 
     def updateMacros
     {
         BeatMacroParser* parser = BeatMacroParser.new
         NSArray* lines = self.safeLines
         
-        for (NSInteger i=0; i<lines.count; i++) {
+        for (NSInteger i=0; i<lines.count; i += 1) {
             Line* l = lines[i]
             if (l.macroRanges.count == 0) continue
             
@@ -762,317 +729,377 @@ class ContinuousFountainParser:
 
     ### Parses line type and formatting ranges for current line. This method also takes care of handling possible disabled types.
     ### @note Type and formatting are parsed by iterating through character arrays. Using regexes would be much easier, but also about 10 times more costly in CPU time.
+    
+
+    # BEEEG function
     def parseTypeAndFormattingForLine(self, line: Line, index: int):
         oldType: LineType = line.type
-        line.escapeRanges = [] # syntax hurty: NSMutableIndexSet
-        line.type = self.parseLineTypeFor(line, atIndex=index)
+        line.escapeRanges = set()
+        line.type = self.parseLineTypeFor(line, index=index)
         
         ## Make sure we didn't receive a disabled type
-        if ([self.delegate.disabledTypes containsIndex:(NSUInteger)line.type]): #syntax hurty : wtf is a delegate
-            if (line.length > 0): line.type = action
-            else: line.type = empty
+        if line.type in self.disabledTypes: #IDK how disabled types are supposed to work
+            if (line.length > 0): 
+                line.type = LineType.action
+            else: line.type = LineType.empty
         
         
-        length: int = line.string.length
-        unichar charArray[length]
-        [line.string getCharacters:charArray]
+        length: int = len(line.string)
+        charArray: str 
+        charArray = line.string
         
         ## Parse notes
         self.parseNotesFor(line, at=index, oldType=oldType)
         
         ## Omits have stars in them, which can be mistaken for formatting characters.
         ## We store the omit asterisks into the "excluded" index set to avoid this mixup.
-        NSMutableIndexSet* excluded = NSMutableIndexSet.new
+        excluded: list = []
         
         ## First, we handle notes and omits, which can bleed over multiple lines.
         ## The cryptically named omitOut and noteOut mean that the line bleeds omit/note out on the next line,
         ## while omitIn and noteIn tell that are a part of another omitted/note block.
         
-        # previousLine: Line = (index <= self.lines.count and index > 0) ? self.lines[index-1] : None
         previousLine: Line
-        if self.lines[index-1]:
-            previousLine: Line = (index <= self.lines.count and index > 0)
+        if (index <= self.lines.count) and (index > 0):
+            previousLine: Line = self.lines[index-1]
         else:
             previousLine = None
         
-        # syntax hurty : oh my god
-        line.omittedRanges = [self rangesOfOmitChars:charArray
-                                            ofLength:length
-                                            inLine:line
-                                    lastLineOmitOut:previousLine.omitOut
-                                        saveStarsIn:excluded]
+        line.omittedRanges = self.rangesOfOmitChars(charArray,
+                                                    length=         length,
+                                                    line=           line,
+                                                    lastLineOut=    previousLine.omitOut,
+                                                    stars=          excluded)
         
-        line.boldRanges = [self rangesInChars:charArray
-                                    ofLength:length
-                                    between:BOLD_CHAR
-                                        and:BOLD_CHAR
-                                withLength:BOLD_PATTERN_LENGTH
-                            excludingIndices:excluded
-                                        line:line]
+        line.boldRanges = self.rangesInChars(charArray,
+                                            length=                 length,
+                                            startString=            fc.BOLD_CHAR,
+                                            endString=              fc.BOLD_CHAR,
+                                            delimLength=            fc.BOLD_PATTERN_LENGTH,
+                                            excludes=               excluded,
+                                            line=                   line)
         
-        line.italicRanges = [self rangesInChars:charArray
-                                    ofLength:length
-                                        between:ITALIC_CHAR
-                                            and:ITALIC_CHAR
-                                    withLength:ITALIC_PATTERN_LENGTH
-                            excludingIndices:excluded
-                                        line:line]
+        line.italicRanges = self.rangesInChars(charArray,
+                                               length=              length,
+                                               startString=         fc.ITALIC_CHAR,
+                                               endString=           fc.ITALIC_CHAR,
+                                               delimLength=         fc.ITALIC_PATTERN_LENGTH,
+                                               excludes=            excluded,
+                                               line=                line)
         
-        line.underlinedRanges = [self rangesInChars:charArray
-                                        ofLength:length
-                                            between:UNDERLINE_CHAR
-                                                and:UNDERLINE_CHAR
-                                        withLength:UNDERLINE_PATTERN_LENGTH
-                                excludingIndices:None
-                                            line:line]
+        line.underlinedRanges = self.rangesInChars(charArray,
+                                                   length=          length,
+                                                   startString=     fc.UNDERLINE_CHAR,
+                                                   endString=       fc.UNDERLINE_CHAR,
+                                                   delimLength=     fc.UNDERLINE_PATTERN_LENGTH,
+                                                   excludes=        None,
+                                                   line=            line)
 
-        line.macroRanges = [self rangesInChars:charArray
-                                    ofLength:length
-                                    between:MACRO_OPEN_CHAR
-                                        and:MACRO_CLOSE_CHAR
-                                    withLength:2
-                            excludingIndices:None
-                                        line:line]
+        '''line.macroRanges = self.rangesInChars=charArray # syntax hurty: MACROS
+                                    ofLength=length
+                                    between=MACRO_OPEN_CHAR
+                                        and=MACRO_CLOSE_CHAR
+                                    withLength=2
+                            excludingIndices=None
+                                        line=line]'''
         
         ## Intersecting indices between bold & italic are boldItalic
-        if (line.boldRanges.count and line.italicRanges.count) line.boldItalicRanges = [line.italicRanges indexesIntersectingIndexSet:line.boldRanges].mutableCopy
-        else line.boldItalicRanges = NSMutableIndexSet.new
+        if len(line.boldRanges) and len(line.italicRanges):
+            line.boldItalicRanges = line.italicRanges.indexesIntersectingIndexSet(line.boldRanges) # syntax hurty: INTERSECTING INDEXES
+        else:
+            line.boldItalicRanges = set()
         
-        if (line.type == heading) {
-            line.sceneNumberRange = [self sceneNumberForChars:charArray ofLength:length]
+        if (line.type == LineType.heading):
+            line.sceneNumberRange = self.sceneNumberForChars(charArray, length)
             
-            if (line.sceneNumberRange.length == 0) {
-                line.sceneNumber = @""
-            } else {
-                line.sceneNumber = [line.string substringWithRange:line.sceneNumberRange]
-            }
-        }
+            if (line.sceneNumberRange.length == 0): #syntax hurty: RANGE
+                line.sceneNumber = ""
+            else:
+                line.sceneNumber = line.string[line.sceneNumberRange] #syntax hurty: RANGE
+            
+        
         
         ## set color for outline elements
-        if (line.type == heading or line.type == section or line.type == synopse) {
-            line.color = [self colorForHeading:line]
-        }
+        if (line.type == LineType.heading or line.type == LineType.section or line.type == LineType.synopse):
+            line.color = self.colorForHeading(line)
+        
         
         ## Markers
-        line.marker = [self markerForLine:line]
+        line.marker = self.markerForLine(line)
         
-        if (line.isTitlePage) {
-            if ([line.string containsString:@":"] and line.string.length > 0) {
+        if (line.isTitlePage):
+            if ":" in line.string and len(line.string) and len(line.string) > 0:
                 ## If the title doesn't begin with \t or space, format it as key name
-                if ([line.string characterAtIndex:0] != ' ' and
-                    [line.string characterAtIndex:0] != '\t' ) line.titleRange = NSMakeRange(0, [line.string rangeOfString:@":"].location + 1)
-                else line.titleRange = NSMakeRange(0, 0)
-            }
-        }
+                if (
+                    line.string[0] != ' ' and
+                    line.string[0] != '\t' ):
+                    
+                    line.titleRange = loc_len(0, line.string.index(":") + 1) 
+                else:
+                    line.titleRange = loc_len(0, 0)
+            
+        
     
 
     ### Parses the line type for given line. It *has* to know its line index.
     ### TODO: This bunch of spaghetti should be refactored and split into smaller functions.
-    def LineType)parseLineTypeFor:(Line*)line atIndex:(NSUInteger)index { @synchronized (self) {
-        Line *previousLine = (index > 0) ? self.lines[index - 1] : None
-        Line *nextLine = (line != self.lines.lastObject and index+1 < self.lines.count) ? self.lines[index+1] : None
+    def parseLineTypeFor(self, line: Line, index: int) -> LineType:
+        previousLine: Line = self.lines[index - 1] if (index > 0) else None
+        nextLine: Line = self.lines[index+1] if (line != self.lines[-1] and index+1 < len(self.lines)) else None
         
-        bool previousIsEmpty = false
+        previousIsEmpty: bool  = False
         
-        NSString *trimmedString = (line.string.length > 0) ? [line.string stringByTrimmingTrailingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] : @""
+        trimmedString: str = line.string.strip() if (len(line.string) > 0) else ""
         
         ## Check for everything that is considered as empty
-        if (previousLine.effectivelyEmpty or index == 0) previousIsEmpty = true
+        if (previousLine is None or index == 0):
+            previousIsEmpty = True
         
         ## Check if this line was forced to become a character cue in editor (by pressing tab)    
-        if (line.forcedCharacterCue or _delegate.characterInputForLine == line) {
-            line.forcedCharacterCue = NO
+        if (line.forcedCharacterCue or self.characterInputForLine == line):
+            line.forcedCharacterCue = False
             ## 94 = ^ (this is here to avoid issues with Turkish alphabet)
-            if (line.lastCharacter == 94) return dualDialogueCharacter
-            else return character
-        }
+            if (line.lastCharacter == 94):
+                return LineType.dualDialogueCharacter
+            else: 
+                return LineType.character
+        
         
         ## Handle empty lines first
-        if (line.length == 0) {
-            if (previousLine.isDialogue or previousLine.isDualDialogue) {
+    
+        if (line.length == 0):
+            if (previousLine.isDialogue or previousLine.isDualDialogue):
                 ## If preceding line is formatted as dialogue BUT it's empty, we'll just return empty.
-                if (previousLine.string.length == 0) return empty
+                if (previousLine.string.length == 0):
+                    return LineType.empty
                 
                 ## If preceeded by a character cue, always return dialogue
-                if (previousLine.type == character) return dialogue
-                elif (previousLine.type == dualDialogueCharacter) return dualDialogue
+                if (previousLine.type == LineType.character):
+                    return LineType.dialogue
+                elif (previousLine.type == LineType.dualDialogueCharacter):
+                    return LineType.dualDialogue
                 
-                NSInteger selection = (NSThread.isMainThread) ? self.delegate.selectedRange.location : 0
+            selection: int = self.delegate.selectedRange.location if (True) else 0 # syntax hurty - threads
                 
                 ## If it's any other dialogue line and we're editing it, return dialogue
-                if ((previousLine.isAnyDialogue or previousLine.isAnyParenthetical) and previousLine.length > 0 and (nextLine.length == 0 or nextLine == None) and NSLocationInRange(selection, line.range)) {
-                    return (previousLine.isDialogue) ? dialogue : dualDialogue
-                }
-            }
+            if (
+                (
+                    previousLine.isAnyDialogue 
+                    or previousLine.isAnyParenthetical
+                ) 
+                and previousLine.length > 0 
+                and (
+                    nextLine.length == 0 
+                    or nextLine is None
+                    ) 
+                and selection in rangeFromLocLen(line._range)
+               ):
+
+                return LineType.dialogue if (previousLine.isDialogue) else LineType.dualDialogue
+                
             
-            return empty
-        }
+            
+            return LineType.empty
+        
         
         ## Check forced elements
-        unichar firstChar = [line.string characterAtIndex:0]
-        unichar lastChar = line.lastCharacter
+        firstChar: str = line[0]
+        lastChar: str = line[-1]
         
         ## Also, lets add the first \ as an escape character
-        if (firstChar == '\\') [line.escapeRanges addIndex:0]
+        if (firstChar == '\\'):
+            line.escapeRanges.append(0)
         
         ## Forced whitespace
-        bool containsOnlyWhitespace = line.string.containsOnlyWhitespace; ## Save to use again later
-        bool twoSpaces = (firstChar == ' ' and lastChar == ' ' and line.length > 1); ## Contains at least two spaces
+        containsOnlyWhitespace: bool = True if line.string.strip() == "" else False ## Save to use again later
+        twoSpaces: bool = (
+            firstChar == ' ' 
+            and lastChar == ' ' 
+            and line.length > 1) ## Contains at least two spaces
         
-        if (containsOnlyWhitespace and !twoSpaces) return empty
+        if (containsOnlyWhitespace and not twoSpaces):
+            return LineType.empty
         
-        if ([trimmedString isEqualToString:@"==="]) {
-            return pageBreak
-        }
-        elif (firstChar == '!') {
+        if trimmedString == "===":
+            return LineType.pageBreak
+        
+        elif (firstChar == 'not '):
             ## Action or shot
-            if (line.length > 1) {
-                unichar secondChar = [line.string characterAtIndex:1]
-                if (secondChar == '!') return shot
-            }
-            return action
-        }
-        elif (firstChar == '.' and previousIsEmpty) {
-            ## '.' forces a heading. Because our American friends love to shoot their guns like we Finnish people love our booze, screenwriters might start dialogue blocks with such "words" as '.44'
-            if (line.length > 1) {
-                unichar secondChar = [line.string characterAtIndex:1]
-                if (secondChar != '.') return heading
-            } else {
-                return heading
-            }
-        }
+            if (line.length > 1):
+                secondChar: str = line.string[1]
+                if (secondChar == 'not '):
+                    return LineType.shot
+            
+            return LineType.action
+        
+        elif (firstChar == '.' and previousIsEmpty):
+            ## '.' forces a heading.
+            ## Because our American friends love to shoot their guns like we Finnish people love our booze,
+            ## screenwriters might start dialogue blocks with such "words" as '.44'
+            if (line.length > 1):
+                secondChar = line.string[1]
+                if (secondChar != '.'):
+                    return LineType.heading
+            else:
+                return LineType.heading
+            
+        
         ## ... and then the rest.
-        elif (firstChar == '@'): return character
-        elif (firstChar == '>' and lastChar == '<') return centered
-        elif (firstChar == '>'): return transitionLine
-        elif (firstChar == '~'): return lyrics
-        elif (firstChar == '='): return synopse
-        elif (firstChar == '#'): return section
-        elif (firstChar == '@' and lastChar == 94 and previousIsEmpty) return dualDialogueCharacter
-        elif (firstChar == '.' and previousIsEmpty) return heading
+        elif (firstChar == '@'): return LineType.character
+        elif (firstChar == '>' and lastChar == '<'): return LineType.centered
+        elif (firstChar == '>'): return LineType.transitionLine
+        elif (firstChar == '~'): return LineType.lyrics
+        elif (firstChar == '='): return LineType.synopse
+        elif (firstChar == '#'): return LineType.section
+        elif (firstChar == '@' and lastChar == 94 and previousIsEmpty): return LineType.dualDialogueCharacter
+        elif (firstChar == '.' and previousIsEmpty): return LineType.heading
         
         ## Title page
-        if (previousLine == None or previousLine.isTitlePage) {
-            LineType titlePageType = [self parseTitlePageLineTypeFor:line previousLine:previousLine lineIndex:index]
-            if (titlePageType != NSNotFound) return titlePageType
-        }
+        if (previousLine == None or previousLine.isTitlePage):
+            titlePageType: LineType = self.parseTitlePageLineTypeFor(line=line, 
+                                                                     previousLine=previousLine,
+                                                                     lineIndex=index)
+            if (titlePageType is not None):
+                return titlePageType
+        
         
         ## Check for Transitions
-        if (line.length > 2 and line.lastCharacter == ':' and line.string.containsOnlyUppercase and previousIsEmpty) {
-            return transitionLine
-        }
+        if (
+            line.length > 2 
+            and line.lastCharacter == ':' 
+            and line.string == line.string.upper() 
+            and previousIsEmpty
+            ):
+
+            return LineType.transitionLine
+        
         
         ## Handle items which require an empty line before them (and we're not forcing character input)
-        elif (previousIsEmpty and line.string.length >= 3 and line != self.delegate.characterInputForLine) {
+        elif (previousIsEmpty 
+              and line.string.length >= 3 
+              and line != self.characterInputForLine):
             ## Heading
-            NSString* firstChars = [line.string substringToIndex:3].lowercaseString
+            firstChars: str = line.string[:3].lower()
             
-            if ([firstChars isEqualToString:@"int"] or
-                [firstChars isEqualToString:@"ext"] or
-                [firstChars isEqualToString:@"est"] or
-                [firstChars isEqualToString:@"i/e"]) {
+            if (firstChars == "int" or
+                firstChars == "ext" or
+                firstChars == "est" or
+                firstChars == "i/e"):
                 
                 ## If it's just under 4 characters, return heading
-                if (line.length == 3) {
-                    return heading
-                } else {
+                if (line.length == 3):
+                    return LineType.heading
+                else:
                     ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
-                    unichar nextChar = [line.string characterAtIndex:3]
-                    if (nextChar == '.' or nextChar == ' ' or nextChar == '/')  return heading
-                }
-            }
+                    nextChar: str = line.string[3]
+                    if (nextChar == '.' 
+                        or nextChar == ' ' 
+                        or nextChar == '/'):
+
+                        return LineType.heading
+                
+            
             
             ## Character
-            if (line.string.onlyUppercaseUntilParenthesis and !containsOnlyWhitespace and line.noteRanges.firstIndex != 0) {
+            if (line.string.onlyUppercaseUntilParenthesis ## NOTE: very specific function damn
+                and not (line.string.strip() == "")
+                and line.noteRanges.firstIndex != 0): # syntax hurty: RANGE
                 ## A character line ending in ^ is a dual dialogue character
                 ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
-                if (lastChar == 94)
-                {
+                if (lastChar == 94):
+                
                     ## Note the previous character cue that it's followed by dual dialogue
-                    [self makeCharacterAwareOfItsDualSiblingFrom:index]
-                    return dualDialogueCharacter
-                } else {
+                    self.makeCharacterAwareOfItsDualSiblingFrom(index)
+                    return LineType.dualDialogueCharacter
+                else:
                     ## It is possible that this IS NOT A CHARACTER but an all-caps action line
-                    if (index + 2 < self.lines.count) {
-                        Line* twoLinesOver = (Line*)self.lines[index+2]
+                    if (index + 2 < self.lines.count):
+                        twoLinesOver: Line = self.lines[index+2]
                         
                         ## Next line is empty, line after that isn't - and we're not on that particular line
                         if ((nextLine.string.length == 0 and twoLinesOver.string.length > 0) or
-                            (nextLine.string.length == 0 and NSLocationInRange(self.delegate.selectedRange.location, nextLine.range))
-                            ) {
-                            return action
-                        }
-                    }
+                            (nextLine.string.length == 0 and self.selectedRange.location in rangeFromLocLen(nextLine._range))
+                            ):
+                            return LineType.action
+                        
                     
-                    return character
-                }
-            }
-        }
+                    
+                    return LineType.character
+                
+            
         
-        elif (_delegate.characterInputForLine == line) {
-            return character
-        }
         
-        if ((previousLine.isDialogue or previousLine.isDualDialogue) and previousLine.length > 0) {
-            if (firstChar == '(') return (previousLine.isDialogue) ? parenthetical : dualDialogueParenthetical
-            return (previousLine.isDialogue) ? dialogue : dualDialogue
-        }
+        elif self.characterInputForLine == line:
+            return LineType.character
+        
+        
+        if ((previousLine.isDialogue or previousLine.isDualDialogue) and previousLine.length > 0):
+            if (firstChar == '(' ): 
+                return LineType.parenthetical if (previousLine.isDialogue) else LineType.dualDialogueParenthetical
+            return LineType.dialogue if (previousLine.isDialogue)  else LineType.dualDialogue
+        
         
         ## Fix some parsing mistakes
-        if (previousLine.type == action and previousLine.length > 0
+        if (previousLine.type == LineType.action and previousLine.length > 0
             and previousLine.string.onlyUppercaseUntilParenthesis
             and line.length > 0
-            and !previousLine.forced
-            and [self previousLine:previousLine].type == empty) {
+            and not previousLine.forced
+            and self.previousLine(previousLine).type == LineType.empty):
             ## Make all-caps lines with < 2 characters character cues and/or make all-caps actions character cues when the text is changed to have some dialogue follow it.
             ## (94 = ^, we'll use the unichar numerical value to avoid mistaking Turkish alphabet letter 'Ş' as '^')
-            if (previousLine.lastCharacter == 94) previousLine.type = dualDialogueCharacter
-            else previousLine.type = character
+            if (previousLine.lastCharacter == 94): previousLine.type = LineType.dualDialogueCharacter
+            else: previousLine.type = LineType.character
             
-            [_changedIndices addIndex:index-1]
+            self.changedIndices.add(index-1)
             
-            if (line.length > 0 and [line.string characterAtIndex:0] == '(') return parenthetical
-            else return dialogue
-        }
+            if (len(line) > 0 
+                and line.string[0] == '('
+                ):
+                return LineType.parenthetical
+            else: 
+                return LineType.dialogue
         
-        return action
-    } }
+        
+        return LineType.action
 
 
-    def parseTitlePageLineTypeFor(line: Line, previousLine: Line, lineIndex: int) -> LineType:
+    def parseTitlePageLineTypeFor(self, line: Line, previousLine: Line, index: int) -> LineType:
     
-        NSString *key = line.titlePageKey
+        key: str = line.titlePageKey
         
         if (key.length > 0):
-            NSString* value = line.titlePageValue
-            if (value == None) value = @""
+            value: str = line.titlePageValue
+            if (value == None):
+                value = ""
             
             ## Store title page data
-            titlePageData: dict = @{ key: [NSMutableArray arrayWithObject:value] }.mutableCopy # syntax hurty: wat
-            [_titlePage addObject:titlePageData]
+            titlePageData: dict = { key: [value] } # syntax hurty: wat
+            self.titlePage.append(titlePageData)
             
             ## Set this key as open (in case there are additional title page lines)
             _openTitlePageKey = key
             
             match key:
-                case "title"
-                    return titlePageTitle
-                case "author" or "authors":
-                    return titlePageAuthor
-                case credit: 
-                    return titlePageCredit
-                case "source: 
-                    return titlePageSource
-                case "contact: 
-                    return titlePageContact
-                case "contacts: 
-                    return titlePageContact
-                case "contact info: 
-                    return titlePageContact
-                case "draft date: 
-                    return titlePageDraftDate
+                case "title":
+                    return LineType.titlePageTitle
+                case "author":
+                    return LineType.titlePageAuthor
+                case "authors":
+                    return LineType.titlePageAuthor
+                case "credit": 
+                    return LineType.titlePageCredit
+                case "source": 
+                    return LineType.titlePageSource
+                case "contact": 
+                    return LineType.titlePageContact
+                case "contacts": 
+                    return LineType.titlePageContact
+                case "contact info": 
+                    return LineType.titlePageContact
+                case "draft date": 
+                    return LineType.titlePageDraftDate
                 case _: 
-                    return titlePageUnknown
+                    return LineType.titlePageUnknown
 
 
                     
@@ -1080,16 +1107,16 @@ class ContinuousFountainParser:
             key: str = ""
             i: int = index - 1
             while (i >= 0):
-                Line *pl = self.lines[i]
-                if (pl.titlePageKey.length > 0) {
+                pl: Line = self.lines[i]
+                if (pl.titlePageKey.length > 0):
                     key = pl.titlePageKey
                     break
-                }
+                
                 i -= 1
             
-            if (key.length > 0):
-                NSMutableDictionary* dict = _titlePage.lastObject
-                [(NSMutableArray*)dict[key] addObject:line.string]
+            if (len(key) > 0):
+                _dict = self.titlePage[-1]
+                _dict[key].append(line.string)
             
             
             return previousLine.type
@@ -1099,13 +1126,13 @@ class ContinuousFountainParser:
     
 
     ### Notifies character cue that it has a dual dialogue sibling
-    def makeCharacterAwareOfItsDualSiblingFrom(index: int):
+    def makeCharacterAwareOfItsDualSiblingFrom(self, index: int):
         i: int = index - 1
-        while (i >= 0) 
+        while (i >= 0):
             prevLine: Line = self.lines[i]
             
-            if (prevLine.type == character):
-                prevLine.nextElementIsDualDialogue = YES
+            if (prevLine.type == LineType.character):
+                prevLine.nextElementIsDualDialogue = True
                 break
             
             if (not prevLine.isDialogueElement and not prevLine.isDualDialogueElement):
@@ -1114,20 +1141,20 @@ class ContinuousFountainParser:
         
     
 
-    def sceneNumberForChars(string: str, length: int) -> range:
+    def sceneNumberForChars(string: str, length: int) -> loc_len:
         backNumberIndex: int = None
-        int note = 0
+        note: int = 0
         
-        for(i: int = length - 1; i >= 0; i -= 1):
-            unichar c = string[i]
+        for i in range(length-1, 0):
+            c: str = string[i]
             
             ## Exclude note ranges: [[ Note ]]
             if (c == ' '):
                 continue
-            if (c == ']' and note < 2) 
+            if (c == ']' and note < 2):
                 note += 1 
                 continue 
-            if (c == '[' and note > 0)
+            if (c == '[' and note > 0):
                 note -= 1 
                 continue
             
@@ -1135,383 +1162,349 @@ class ContinuousFountainParser:
             if (note == 2):
                 continue
             
-            if (backNumberIndex == NSNotFound):
+            if (backNumberIndex == None):
                 if (c == '#'):
                     backNumberIndex = i
                 else: 
                     break
-             else: 
+            else: 
                 if (c == '#'):
-                    return NSMakeRange(i+1, backNumberIndex-i-1) # syntax hurty: RANGE 
+                    return loc_len(i+1, backNumberIndex-i-1)
                 
-            
         
-        
-        return NSMakeRange(0, 0) # syntax hurty : why return range of 0?
+        return loc_len(0, 0) # syntax hurty : why return range of 0?
     
 
-    def markerForLine:(Line*)line -> str:
-        line.markerRange = (NSRange){0, 0}
+    def markerForLine(self, line: Line) -> str:
+        line.markerRange = loc_len(0,0) 
         line.marker = ""
         line.markerDescription = ""
         
-        NSString *markerColor = ""
-        NSString *markerContent = ""
+        markerColor: str = ""
+        markerContent: str = ""
         
         ## Get the last marker. If none is found, just return ""
-        marker: list = [line contentAndRangeForLastNoteWithPrefix:@"marker"]
-        if (marker == None) return @""
+        marker: list = line.contentAndRangeForLastNoteWithPrefix("marker")
+        if (marker == None):
+            return ""
         
         ## The correct way to add a marker is to write [[marker color:Content]], but we'll be gratitious here.
-        NSRange range = ((NSNumber*)marker[0]).rangeValue
-        NSString* string = marker[1]
+        _range: loc_len = marker[0].rangeValue # syntax hurty: RANGE
+        string: str = marker[1]
         
-        if (![string containsString:@":"] and [string containsString:@" "]) {
+        if (not ":" in string) and (" " in string):
             ## No colon, let's separate components.
             ## First words will always be "marker", so get the second word and see if it's a color
-            NSArray<NSString*>* words = [string componentsSeparatedByString:@" "]
-            NSInteger descriptionStart = @"marker ".length
+            words: list[str] = string.split()
+            descriptionStart: int = len("marker ")
             
-            if (words.count > 1) {
-                NSString* potentialColor = words[1].lowercaseString
-                if ([[self colors] containsObject:potentialColor]) {
+            if (words.count > 1):
+                potentialColor: str = words[1].lower()
+                if potentialColor in self.colors:
                     markerColor = potentialColor
-                }
-            }
+                
+            
             
             ## Get the content after we've checked for potential color for this marker
-            markerContent = [string substringFromIndex:descriptionStart + markerColor.length]
-        }
-        elif ([string containsString:@":"]) {
-            NSInteger l = [string rangeOfString:@":"].location
-            markerContent = [string substringFromIndex:l+1]
+            markerContent = string[(descriptionStart + markerColor):]
+        
+        elif ":" in string:
+            l: int = string.index(":")
+            markerContent = string[l+1:]
             
-            NSString* left = [string substringToIndex:l]
-            NSArray* words = [left componentsSeparatedByString:@" "]
+            left: str = string[:l]
+            words: list = left.split()
             
-            if (words.count > 1) markerColor = words[1]
-        }
+            if len(words) > 1:
+                markerColor = words[1]
+        
         
         ## Use default as marker color if no applicable color found
-        line.marker = (markerColor.length > 0) ? markerColor.lowercaseString : @"default"
-        line.markerDescription = [markerContent stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]
-        line.markerRange = range
+        line.marker = markerColor.lower() if len(markerColor) > 0 else "default"
+        line.markerDescription = markerContent.strip()
+        line.markerRange = _range
         
         return markerColor
     
 
-    ### Finds and sets the color for given outline-level line. Only the last one is used, preceding color notes are ignored.
-    def colorForHeading(line: Line)-> str:
-    {
-        NSArray *colors = self.colors
+    ### Finds and sets the color for given outline-level line.
+    ### Only the last one is used, preceding color notes are ignored.
+    def colorForHeading(self, line: Line)-> str:
+        colors: list = self.colors
         
-        __block NSString* headingColor = @""
-        line.colorRange = NSMakeRange(0, 0)
+        headingColor: str = "" #syntax hurty: __block
+        line.colorRange = loc_len(0, 0)
         
-        NSDictionary<NSValue*, NSString*>* noteContents = line.noteContentsAndRanges
-        for (NSNumber* key in noteContents.allKeys) {
-            NSRange range = key.rangeValue
-            NSString* content = noteContents[key].lowercaseString
+        noteContents: dict[any, str] = line.noteContentsAndRanges # NOTE: does obj-c flip the key and value ??
+        for key in noteContents.keys():
+            _range = key.rangeValue #syntax hurty: RANGE Value ???
+            content: str = noteContents[key].lower
             
             ## We only want the last color on the line, which DOESN'T bleed out.
             ## The values come from a dictionary, so we can't be sure, so just skip it if it's an earlier one.
-            if (line.colorRange.location > range.location or
-                (NSMaxRange(range) == line.length and line.noteOut) ) continue
+            if (line.colorRange.location > _range.location or
+                ((_range == line.length) and line.noteOut) ):
+                continue
             
             ## We can define a color using both [[color red]] or just [[red]], or #ffffff
-            if ([content containsString:@"color "]) {
+            if ("color " in content):
                 ## "color red"
-                headingColor = [content substringFromIndex:@"color ".length]
-                line.colorRange = range
-            }
-            elif ([colors containsObject:content] or
-                    (content.length == 7 and [content characterAtIndex:0] == '#')) {
+                headingColor = content[len("color "):]
+                line.colorRange = _range
+            
+            elif (content in colors 
+                  or (len(content) == 7 and content[0] == '#')):
                 ## pure "red" or "#ff0000"
                 headingColor = content
-                line.colorRange = range
-            }
-        }
+                line.colorRange = _range 
         
         return headingColor
-    }
-
-
-
-    '''def NSArray *)beatsFor:(Line *)line {
-        if (line.length == 0) return @[]
-        
-        NSUInteger length = line.string.length
-        unichar string[length]
-        [line.string.lowercaseString getCharacters:string]; ## Make it lowercase for range enumeration
-        
-        NSMutableIndexSet *set = [self asymRangesInChars:string ofLength:length between:"[[beat" and:"]]" startLength:@"[[beat".length endLength:2 excludingIndices:None line:line]
-        
-        NSMutableArray *beats = NSMutableArray.array
-        
-        [set enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            NSString *storylineStr = [line.string substringWithRange:range]
-            NSUInteger loc = @"[[beat".length
-            NSString *rawBeats = [storylineStr substringWithRange:(NSRange){ loc, storylineStr.length - loc - 2 }]
-            
-            NSArray *components = [rawBeats componentsSeparatedByString:@","]
-            for (NSString *component in components) {
-                Storybeat *beat = [Storybeat line:line scene:None string:component range:range]
-                [beats addObject:beat]
-            }
-            
-            [line.beatRanges addIndexesInRange:range]
-        }]
-        
-        return beats
-    }
-    def NSArray *)storylinesFor:(Line *)line {
-        ## This is here for backwards-compatibility with older documents.
-        ## These are nowadays called BEATS.
-        NSUInteger length = line.string.length
-        unichar string[length]
-        [line.string.lowercaseString getCharacters:string]; ## Make it lowercase for range enumeration
-            
-        NSMutableIndexSet *set = [self asymRangesInChars:string ofLength:length between:"[[storyline" and:"]]" startLength:@"[[storyline".length endLength:2 excludingIndices:None line:line]
-        
-        NSMutableArray *beats = NSMutableArray.array
-        
-        [set enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            NSString *storylineStr = [line.string substringWithRange:range]
-            NSUInteger loc = @"[[storyline".length
-            NSString *rawStorylines = [storylineStr substringWithRange:(NSRange){ loc, storylineStr.length - loc - 2 }]
-            
-            NSArray *components = [rawStorylines componentsSeparatedByString:@","]
-            
-            for (NSString *component in components) {
-                Storybeat *beat = [Storybeat line:line scene:None string:component range:range]
-                [beats addObject:beat]
-            }
-            
-            [line.beatRanges addIndexesInRange:range]
-        }]
-        
-        return beats
-    }
-    '''
-
 
 
     #pragma mark - Title page
 
     ### Returns the title page lines as string
-    def NSString*)titlePageAsString
-    {
-        NSMutableString *string = NSMutableString.new
-        for (Line* line in self.safeLines) {
-            if (!line.isTitlePage) break
-            [string appendFormat:@"%@\n", line.string]
-        }
+    def titlePageAsString(self,) -> str:
+        string: str = ""
+        for line in self.safeLines:
+            if (not line.isTitlePage):
+                break
+            string += (line.string + "\n")
+        
         return string
-    }
+    
 
     ### Returns just the title page lines
-    def NSArray<Line*>*)titlePageLines
-    {
-        NSMutableArray *lines = NSMutableArray.new
-        for (Line* line in self.safeLines) {
-            if (!line.isTitlePage) break
-            [lines addObject:line]
-        }
+    def titlePageLines(self) -> list[Line]:
+        lines: list = []
+        for line in self.safeLines:
+            if (not line.isTitlePage):
+                break
+            lines.append(line)
         
         return lines
-    }
 
-    ### Re-parser the title page and returns a weird array structure: `[ { "key": "value }, { "key": "value }, { "key": "value } ]`.
-    ### This is because we want to maintain the order of the keys, and though ObjC dictionaries sometimes stay in the correct order, things don't work like that in Swift.
-    def NSArray<NSDictionary<NSString*,NSArray<Line*>*>*>*)parseTitlePage
-    {
-        [self.titlePage removeAllObjects]
+
+    ### Re-parser the title page and returns a weird array structure: 
+    ### `[ { "key": "value }, { "key": "value }, { "key": "value } ]`.
+    ### This is because we want to maintain the order of the keys
+    ### and though ObjC dictionaries sometimes stay in the correct order, 
+    ### things don't work like that in Swift.
+    def parseTitlePage(self) -> list[dict[str, list[Line]]]:
+        self.titlePage.clear() # NOTE: Necessary in Python?
         
         ## Store the latest key
-        NSString *key = @""
-        BeatMacroParser* titlePageMacros = BeatMacroParser.new
+        key = ""
+        # titlePageMacros: BeatMacroParser = BeatMacroParser # syntax hurty: MACROS
         
         ## Iterate through lines and break when we encounter a non- title page line
-        for (Line* line in self.safeLines) {
-            if (!line.isTitlePage) break
+        for line in self.safeLines:
+            if (not line.isTitlePage):
+                break
             
-            [self resolveMacrosOn:line parser:titlePageMacros]
+            # [self resolveMacrosOn:line parser:titlePageMacros] # syntax hurty: MACROS
             
             ## Reset flags
-            line.beginsTitlePageBlock = false
-            line.endsTitlePageBlock = false
+            line.beginsTitlePageBlock = False # synatx hurty: this is a macro I guess? IDK how these are set in the Line class...
+            line.endsTitlePageBlock = False
             
             ## Determine if the line is empty
-            bool empty = false
+            empty: bool = False
             
             ## See if there is a key present on the line ("Title: ..." -> "Title")
-            if (line.titlePageKey.length > 0) {
-                key = line.titlePageKey.lowercaseString
-                if ([key isEqualToString:@"author"]) key = @"authors"
+            if (line.titlePageKey.length > 0):
+                key = line.titlePageKey.lower()
+                if (key == "author"):
+                    key = "authors"
                 
-                line.beginsTitlePageBlock = true
+                line.beginsTitlePageBlock = True
                 
-                NSMutableDictionary* titlePageValue = [NSMutableDictionary dictionaryWithDictionary:@{ key: NSMutableArray.new }]
-                [self.titlePage addObject:titlePageValue]
+                titlePageValue: dict = {key: []} # syntax hurty: ???
+                self.titlePage.update(titlePageValue)
                 
                 ## Add the line into the items of the current line, IF IT'S NOT EMPTY
-                NSString* trimmed = [line.string substringFromIndex:line.titlePageKey.length+1].trim
-                if (trimmed.length == 0) empty = true
-            }
+                trimmed = line.string[(len(line.titlePageKey)+1):].strip()
+                if (len(trimmed) == 0):
+                    empty = True
+            
             
             ## Find the correct item in an array of dictionaries
             ## [ { "title": [Line] } , { ... }, ... ]
-            NSMutableArray *items = [self titlePageArrayForKey:key]
-            if (items == None) continue
+            items: list = self.titlePage[key]
+            if (items == None):
+                continue
             
             ## Add the line if it's not empty
-            if (!empty) [items addObject:line]
-        }
+            if (not empty):
+                items.append(line)
+        
         
         ## After we've gathered all the elements, lets iterate them once more to determine where blocks end.
-        for (NSDictionary<NSString*,NSArray<Line*>*>* element in self.titlePage) {
-            NSArray<Line*>* lines = element.allValues.firstObject
-            lines.firstObject.beginsTitlePageBlock = true
-            lines.lastObject.endsTitlePageBlock = true
-        }
+        for element in self.titlePage:
+            lines: list[Line] = element.values()[0]
+            lines[0].beginsTitlePageBlock = True
+            lines[-1].endsTitlePageBlock = True
+        
         
         return self.titlePage
-    }
+    
 
-    ### Returns the lines for given title page key. For example,`Title` would return something like `["My Film"]`.
-    def NSMutableArray<Line*>*)titlePageArrayForKey:(NSString*)key
-    {
-        for (NSMutableDictionary* d in self.titlePage) {
-            if ([d.allKeys.firstObject isEqualToString:key]) return d[d.allKeys.firstObject]
-        }
+    ### Returns the lines for given title page key.
+    ### For example,`Title` would return something like `["My Film"]`.
+    def titlePageArrayForKey(self, key: str) -> list[Line]:
+        for d in self.titlePage:
+            if d.keys()[0] == key:
+                return d[d.keys()[0]]
         return None
-    }
+    
 
 
     #pragma mark - Finding character ranges
 
-    def NSMutableIndexSet*)rangesInChars:(unichar*)string ofLength:(NSUInteger)length between:(char*)startString and:(char*)endString withLength:(NSUInteger)delimLength excludingIndices:(NSMutableIndexSet*)excludes line:(Line*)line
-    {
+    def rangesInChars(self,
+                      string: str,
+                      length: int,
+                      startString: str,
+                      endString: str,
+                      delimLength: int,
+                      excludes: list,
+                      line: Line) -> set:
         ## Let's use the asym method here, just put in our symmetric delimiters.
-        return [self asymRangesInChars:string ofLength:length between:startString and:endString startLength:delimLength endLength:delimLength excludingIndices:excludes line:line]
-    }
+        return self.asymRangesInChars(string,
+                                      length,
+                                      startString,
+                                      endString,
+                                      delimLength,
+                                      delimLength,
+                                      excludes,
+                                      line)
+    
 
 
     # @note This is a confusing method name, but only because it is based on the old rangesInChars method. However, it's basically the same code, but I've put in the ability to seek ranges between two delimiters that are **not** the same, and can have asymmetrical length.  The original method now just calls this using the symmetrical delimiters.
-
-    def NSMutableIndexSet*)asymRangesInChars:(unichar*)string ofLength:(NSUInteger)length between:(char*)startString and:(char*)endString startLength:(NSUInteger)startLength endLength:(NSUInteger)delimLength excludingIndices:(NSMutableIndexSet*)excludes line:(Line*)line
-    {
-        NSMutableIndexSet* indexSet = NSMutableIndexSet.new
-        if (length < startLength + delimLength) return indexSet
+    # NOTE: oh dear
+    def asymRangesInChars(string: str, 
+                          length: int,
+                          startString: str, 
+                          endString: str,
+                          startLength: int,
+                          delimLength: int,
+                          excludes: list,
+                          line: Line) -> set:
+    
+        indexSet: set = set() # NOTE: fuck i have to go back and redo all the sets AAAAAA
+        if (length < startLength + delimLength):
+            return indexSet
         
-        NSRange range = NSMakeRange(-1, 0)
+        _range = loc_len(-1, 0)
         
-        for (NSInteger i=0; i <= length - delimLength; i++) {
+        for i in range(length - delimLength):
             ## If this index is contained in the omit character indexes, skip
-            if ([excludes containsIndex:i]) continue
+            if i in excludes:
+                continue
             
             ## First check for escape character
-            if (i > 0) {
-                unichar prevChar = string[i-1]
-                if (prevChar == '\\') {
-                    [line.escapeRanges addIndex:i - 1]
+            if (i > 0):
+                prevChar: str = string[i-1]
+                if (prevChar == '\\'):
+                    line.escapeRanges.add(i - 1)
                     continue
-                }
-            }
+
             
-            if (range.location == -1) {
+            if (_range.location == -1):
                 ## Next, see if we can find the whole start string
-                bool found = true
-                for (NSInteger k=0; k<startLength; k++) {
-                    if (i+k >= length) {
+                found: bool = True
+                for k in _range(startLength):
+                    if (i+k >= length):
                         break
-                    } elif (startString[k] != string[i+k]) {
-                        found = false
+                    elif (startString[k] != string[i+k]):
+                        found = False
                         break
-                    }
-                }
+                    
+                if (not found):
+                    continue
                 
-                if (!found) continue
-                
-                ## Success! We found a matching string
-                range.location = i
+                ## Successnot  We found a matching string
+                _range.location = i
                 
                 ## Pass the starting string
                 i += startLength-1
                 
-            } else {
+            else:
                 ## We have found a range, let's see if we find a closing string.
-                bool found = true
-                for (NSInteger k=0; k<delimLength; k++) {
-                    if (endString[k] != string[i+k]) {
-                        found = false
+                found: bool = True
+                for k in range(delimLength):
+                    if (endString[k] != string[i+k]):
+                        found = False
                         break
-                    }
-                }
                 
-                if (!found) continue
+                if (not found):
+                    continue
                 
                 ## Success, we found a closing string.
-                range.length = i + delimLength - range.location
-                [indexSet addIndexesInRange:range]
+                _range.length = i + delimLength - _range.location
+
+                for idx in rangeFromLocLen(_range):
+                    indexSet.add(idx)
                 
                 ## Add the current formatting ranges to future excludes
-                [excludes addIndexesInRange:(NSRange){ range.location, startLength }]
-                [excludes addIndexesInRange:(NSRange){ i, delimLength }]
+                excludes.add(n for n in range(_range.location, startLength))
+                excludes.add(n for n in range(i, delimLength))
                 
-                range.location = -1
+                _range.location = -1
                 
                 ## Move past the ending string
                 i += delimLength - 1
-            }
-        }
-        
+            
         return indexSet
-    }
+    
 
-    def NSMutableIndexSet*)rangesOfOmitChars:(unichar*)string ofLength:(NSUInteger)length inLine:(Line*)line lastLineOmitOut:(bool)lastLineOut saveStarsIn:(NSMutableIndexSet*)stars
-    {
+    def rangesOfOmitChars(string: str,
+                          length: int,
+                          line: Line,
+                          lastLineOut: bool,
+                          stars: set )-> set:
         line.omitIn = lastLineOut
         
-        NSMutableIndexSet* indexSet = NSMutableIndexSet.new
-        NSRange range = (line.omitIn) ? NSMakeRange(0, 0) : NSMakeRange(NSNotFound, 0)
+        indexSet: set = set()
+        _range: loc_len =  loc_len(0, 0) if (line.omitIn) else loc_len(None, 0) # NOTE: not sure about just setting the location to None
         
-        for (NSUInteger i=0; i < length-1; i++) {
-            if (i+1 > length) break
-            unichar c1 = string[i]
-            unichar c2 = string[i+1]
+        for i in range(length - 1): 
+            if (i+1 > length): break
+            c1 = string[i]
+            c2 = string[i+1]
             
-            if (c1 == '/' and c2 == '*' and range.location == NSNotFound) {
-                [stars addIndex:i+1]
-                range.location = i
+            if (c1 == '/' and c2 == '*' and _range.location == None):
+                stars.add(i+1)
+                _range.location = i
                 
-            } elif (c1 == '*' and c2 == '/') {
-                if (range.location == NSNotFound) continue
+            elif (c1 == '*' and c2 == '/'):
+                if (_range.location == None): continue
                 
-                [stars addIndex:i]
+                stars.add(i)
                 
-                range.length = i - range.location + OMIT_PATTERN_LENGTH
-                [indexSet addIndexesInRange:range]
+                _range.length = i - _range.location + fc.OMIT_PATTERN_LENGTH
+                indexSet.add(n for n in rangeFromLocLen(_range))
                 
-                range = NSMakeRange(NSNotFound, 0)
-            }
-        }
+                _range = loc_len(None, 0)
+            
         
-        if (range.location != NSNotFound) {
-            line.omitOut = true
-            [indexSet addIndexesInRange:NSMakeRange(range.location, line.length - range.location + 1)]
-        } else {
-            line.omitOut = false
-        }
+        
+        if (_range.location is not None):
+            line.omitOut = True
+            indexSet.update(loc_len(_range.location, len(line) - _range.location + 1))
+        else:
+            line.omitOut = False
+        
         
         return indexSet
-    }
+    
 
 
-    #pragma mark - Fetching Outline Data
+    #pragma mark - Fetching Outline Data ---- BACKBRUNER
 
     ### Returns a tree structure for the outline. Only top-level elements are included, get the rest using `element.chilren`.
-    def NSArray*)outlineTree
+    '''def NSArray*)outlineTree
     {
         NSMutableArray* tree = NSMutableArray.new
         
@@ -1582,18 +1575,18 @@ class ContinuousFountainParser:
             NSString* s = [NSString stringWithFormat:@"%lu", sceneNumber]
                     
             if ([forcedNumbers containsObject:s]) {
-                for (NSInteger i=0; i<postfixes.count; i++) {
+                for (NSInteger i=0; i<postfixes.count; i += 1) {
                     s = [NSString stringWithFormat:@"%lu%@", sceneNumber, postfixes[i]]
-                    if (![forcedNumbers containsObject:s]) break
+                    if (not [forcedNumbers containsObject:s]) break
                 }
             }
             
-            if (![oldSceneNumber isEqualToString:s]) {
+            if (not [oldSceneNumber isEqualToString:s]) {
                 if (scene != None) [self.outlineChanges.updated addObject:scene]
             }
 
             line.sceneNumber = s
-            sceneNumber++
+            sceneNumber += 1
         }
     }
 
@@ -1616,67 +1609,65 @@ class ContinuousFountainParser:
     }
 
     ### Gets and resets the changes to outline
-    def OutlineChanges*)changesInOutline
-    {
+    def changesInOutline() -> OutlineChanges:
+    
         ## Refresh the changed outline elements
-        for (OutlineScene* scene in self.outlineChanges.updated) {
+        for (OutlineScene* scene in self.outlineChanges.updated):
             [self updateScene:scene at:NSNotFound lineIndex:NSNotFound]
-        }
-        for (OutlineScene* scene in self.outlineChanges.added) {
-            [self updateScene:scene at:NSNotFound lineIndex:NSNotFound]
-        }
+        
+        for (OutlineScene* scene in self.outlineChanges.added):
+            [self.updateScene(scene=scene. at:NSNotFound lineIndex:NSNotFound)]
+        
         
         ## If any changes were made to the outline, rebuild the hierarchy.
-        if (self.outlineChanges.hasChanges) [self updateOutlineHierarchy]
+        if (self.outlineChanges.hasChanges):
+            self.updateOutlineHierarchy()
         
-        OutlineChanges* changes = self.outlineChanges.copy
-        self.outlineChanges = OutlineChanges.new
+        changes: OutlineChanges = self.outlineChanges.copy # syntax hurty - MEMORY MANAGEMENT
+        self.outlineChanges = OutlineChanges
         
         return changes
-    }
+    
 
     ### Returns an array of dictionaries with UUID mapped to the actual string.
-    -(NSArray<NSDictionary<NSString*,NSString*>*>*)outlineUUIDs
-    {
-        NSMutableArray* outline = NSMutableArray.new
-        for (OutlineScene* scene in self.outline) {
-            [outline addObject:@{
-                @"uuid": scene.line.uuid.UUIDString,
-                @"string": scene.line.string
-            }]
-        }
+    def outlineUUIDs() -> list[dict[str, str]]:
+        outline: list = []
+        for scene in self.outline:
+            outline.append(
+                {
+                    "uuid": scene.line.uuid.UUIDString,
+                    "string": scene.line.string
+                }
+            )
         
-        return outline
-    }
-
-
-    #pragma mark - Handling changes to outline
+        return outline'''
+    
+    # HOT RELOAD
+    #pragma mark - Handling changes to outline ---- BACKBURNER
     ## TODO: Maybe make this a separate class, or are we stepping into the dangerous parts of OOP?
 
     ### Updates the current outline from scratch. Use sparingly.
-    def updateOutline
-    {
-        [self updateOutlineWithLines:self.safeLines]
-    }
+    '''def updateOutline(self):
+        self.updateOutlineWithLines(self.safeLines)
+
 
     ### Updates the whole outline from scratch with given lines.
-    def updateOutlineWithLines:(NSArray<Line*>*)lines
-    {
-        self.outline = NSMutableArray.new
+    def updateOutlineWithLines(self, lines: list[Line]):
+        self.outline: list = []
             
-        for (NSInteger i=0; i<lines.count; i++) {
-            Line* line = self.lines[i]
-            if (!line.isOutlineElement) continue
+        for i in range(len(lines)):
+            line: Line = self.lines[i]
+            if not line.isOutlineElement():
+                continue
             
-            [self updateSceneForLine:line at:self.outline.count lineIndex:i]
-        }
+            self.updateSceneForLine(line, len(self.outline), i)
         
-        [self updateOutlineHierarchy]
-    }
+        
+        self.updateOutlineHierarchy
+    
 
     ### Adds an update to this line, but only if needed
-    def addUpdateToOutlineIfNeededAt:(NSInteger)lineIndex
-    {
+    def addUpdateToOutlineIfNeededAt(lineIndex: int):
         ## Don't go out of range
         if (self.lines.count == 0) return
         elif (lineIndex >= self.lines.count) lineIndex = self.lines.count - 1
@@ -1684,12 +1675,12 @@ class ContinuousFountainParser:
         Line* line = self.safeLines[lineIndex]
 
         ## Nothing to update
-        if (line.type != synopse and !line.isOutlineElement and line.noteRanges.count == 0 and line.markerRange.length == 0) return
+        if (line.type != synopse and not line.isOutlineElement and line.noteRanges.count == 0 and line.markerRange.length == 0) return
 
         ## Find the containing outline element and add an update to it
         NSArray* lines = self.safeLines
         
-        for (NSInteger i = lineIndex; i >= 0; i--) {
+        for (NSInteger i = lineIndex; i >= 0; i -= 1) {
             Line* line = lines[i]
             
             if (line.isOutlineElement) {
@@ -1697,7 +1688,7 @@ class ContinuousFountainParser:
                 return
             }
         }
-    }
+    
 
 
     ### Forces an update to the outline element which contains the given line. No additional checks.
@@ -1708,8 +1699,8 @@ class ContinuousFountainParser:
         
         ## In some cases we also need to update the surrounding elements
         if (didChangeType) {
-            OutlineScene* previousScene = [self outlineElementInRange:NSMakeRange(line.position - 1, 0)]
-            OutlineScene* nextScene = [self outlineElementInRange:NSMakeRange(NSMaxRange(scene.range) + 1, 0)]
+            OutlineScene* previousScene = [self outlineElementInRange:loc_len(line.position - 1, 0)]
+            OutlineScene* nextScene = [self outlineElementInRange:loc_len(NSMaxRange(scene.range) + 1, 0)]
             
             if (previousScene != None) [_outlineChanges.updated addObject:previousScene]
             if (nextScene != None) [_outlineChanges.updated addObject:nextScene]
@@ -1752,7 +1743,7 @@ class ContinuousFountainParser:
         
         NSMutableSet* beats = NSMutableSet.new
         
-        for (NSInteger i=lineIndex; i<self.lines.count; i++) {
+        for (NSInteger i=lineIndex; i<self.lines.count; i += 1) {
             Line* line = self.lines[i]
             
             if (line != scene.line and line.isOutlineElement) break
@@ -1785,7 +1776,7 @@ class ContinuousFountainParser:
     {
         NSInteger index = NSNotFound
 
-        for (NSInteger i=0; i<self.outline.count; i++) {
+        for (NSInteger i=0; i<self.outline.count; i += 1) {
             OutlineScene* scene = self.outline[i]
 
             if (line.position <= scene.position) {
@@ -1798,7 +1789,7 @@ class ContinuousFountainParser:
 
         OutlineScene* scene = [OutlineScene withLine:line delegate:self]
         if (index == NSNotFound) [self.outline addObject:scene]
-        else [self.outline insertObject:scene atIndex:index]
+        else [self.outline insertObject:scene indexindex]
 
         ## Add the scene
         [_outlineChanges.added addObject:scene]
@@ -1811,7 +1802,7 @@ class ContinuousFountainParser:
     {
         OutlineScene* scene
         NSInteger index = NSNotFound
-        for (NSInteger i=0; i<self.outline.count; i++) {
+        for (NSInteger i=0; i<self.outline.count; i += 1) {
             scene = self.outline[i]
             if (scene.line == line) {
                 index = i
@@ -1831,8 +1822,7 @@ class ContinuousFountainParser:
     }
 
     ### Rebuilds the outline hierarchy (section depths) and calculates scene numbers.
-    def updateOutlineHierarchy
-    {
+    def updateOutlineHierarchy()
         NSUInteger sectionDepth = 0
         NSMutableArray *sectionPath = NSMutableArray.new
         OutlineScene* currentSection
@@ -1888,26 +1878,26 @@ class ContinuousFountainParser:
         
         ## Do the actual scene number update.
         [self updateSceneNumbers:autoNumbered forcedNumbers:forcedNumbers]
-    }
+    
 
-    ### NOTE: This method is used by line preprocessing to avoid recreating the outline. It has some overlapping functionality with `updateOutlineHierarchy` and `updateSceneNumbers:forcedNumbers:`.
-    def updateSceneNumbersInLines
-    {
+    ### NOTE: This method is used by line preprocessing to avoid recreating the outline.
+    ### It has some overlapping functionality with `updateOutlineHierarchy` and `updateSceneNumbers:forcedNumbers:`.
+    def updateSceneNumbersInLines()
+    
         NSMutableArray* autoNumbered = NSMutableArray.new
         NSMutableSet<NSString*>* forcedNumbers = NSMutableSet.new
-        for (Line* line in self.safeLines) {
-            if (line.type == heading and !line.omitted) {
+        for (Line* line in self.safeLines):
+            if (line.type == LineType.heading and not line.omitted):
                 if (line.sceneNumberRange.length > 0) [forcedNumbers addObject:line.sceneNumber]
-                else [autoNumbered addObject:line]
-            }
-        }
+                else autoNumbered addObject:li
+        
         
         ### `updateSceneNumbers` supports both `Line` and `OutlineScene` objects.
-        [self updateSceneNumbers:autoNumbered forcedNumbers:forcedNumbers]
-    }
+        [self.updateSceneNumbers:autoNumbered forcedNumbers:forcedNumbers]'''
+    
 
-
-    #pragma mark - Thread-safety for arrays
+    # MEMORY SAFETY
+    #pragma mark - Thread-safety for arrays  -= 1- BACKBURNER
 
 
     
@@ -1919,7 +1909,7 @@ class ContinuousFountainParser:
     
     '''
 
-    def NSArray*)safeLines
+    '''def NSArray*)safeLines
     {
         if (NSThread.isMainThread) return self.lines
         else return self.lines.copy
@@ -1934,7 +1924,7 @@ class ContinuousFountainParser:
     def NSDictionary<NSUUID*, Line*>*)uuidsToLines
     {
         @synchronized (self.lines) {
-            ## Return the cached version when possible -- or when we are not in the main thread.
+            ## Return the cached version when possible  -= 1 or when we are not in the main thread.
             NSArray* lines = self.lines.copy
             if ([self.cachedLines isEqualToArray:lines]) return _uuidsToLines
             
@@ -1953,164 +1943,146 @@ class ContinuousFountainParser:
             
             return _uuidsToLines
         }
-    }
+    }'''
 
 
-    #pragma mark - Convenience methods
+    #pragma mark - Convenience methods ---- BACKBURNER
 
-    def NSInteger)numberOfScenes
-    {
-        NSArray *lines = self.safeLines
-        NSInteger scenes = 0
+    '''def numberOfScenes() -> int:
+        lines: list = self.safeLines
+        scenes: int = 0
         
-        for (Line *line in lines) {
-            if (line.type == heading) scenes++
-        }
+        for line in lines:
+            if line.type == LineType.heading:
+                scenes += 1
+        
         
         return scenes
-    }
-
-    def NSArray*)scenes
-    {
-        NSArray *outline = self.safeOutline; ## Use thread-safe lines
-        NSMutableArray *scenes = NSMutableArray.new
+    def scenes() -> list:
+        outline: list = self.safeOutline; ## Use thread-safe lines
+        scenes: list = []
         
-        for (OutlineScene *scene in outline) {
-            if (scene.type == heading) [scenes addObject:scene]
-        }
+        for scene in outline:
+            if (scene.type == LineType.heading):
+                scenes.append(scene)
         return scenes
-    }
+
 
     ### Returns the lines in given scene
-    def NSArray*)linesForScene:(OutlineScene*)scene
-    {
+    def linesForScene(scene: OutlineScene) -> list:
         ## Return minimal results for non-scene elements
-        if (scene == None) return @[]
-        elif (scene.type == synopse) return @[scene.line]
+        if scene is None:
+            return []
+        elif (scene.type == LineType.synopse):
+            return scene.line
         
-        NSArray *lines = self.safeLines
+        lines = self.safeLines
             
-        NSInteger lineIndex = [self indexOfLine:scene.line]
-        if (lineIndex == NSNotFound) return @[]
+        lineIndex: int = self.indexOfLine(scene.line)
+        if lineIndex is None:
+            return []
         
         ## Automatically add the heading line and increment the index
         NSMutableArray *linesInScene = NSMutableArray.new
-        [linesInScene addObject:scene.line]
-        lineIndex++
+        linesInScene.append(scene.line)
+        lineIndex += 1
         
         ## Iterate through scenes and find the next terminating outline element.
-        @try {
-            while (lineIndex < lines.count) {
-                Line *line = lines[lineIndex]
+        try:
+            while lineIndex < len(lines):
+                _line = lines[lineIndex]
 
-                if (line.type == heading or line.type == section) break
-                [linesInScene addObject:line]
+                if (_line.type == LineType.heading or _line.type == LineType.section):
+                    break
+                linesInScene.append(_line)
                 
-                lineIndex++
-            }
-        }
-        @catch (NSException *e) {
-            NSLog(@"No lines found")
-        }
+                lineIndex += 1
+        except:
+            print("No lines found")
         
         return linesInScene
-    }
+    
 
     ### Returns the previous line from the given line
-    def Line*)previousLine:(Line*)line
-    {
-        NSInteger i = [self lineIndexAtPosition:line.position]; ## Note: We're using lineIndexAtPosition because it's *way* faster
+    def previousLine(line: Line) -> Line:
+        i: int = self.lineIndexAtPosition(line.position) ## Note: We're using lineIndexAtPosition because it's *way* faster
         
-        if (i > 0 and i != NSNotFound) return self.safeLines[i - 1]
-        else return None
-    }
+        if i > 0 and i is not None:
+            return self.safeLines[i - 1]
+        else:
+            return None
+    
 
     ### Returns the following line from the given line
-    def Line*)nextLine:(Line*)line
-    {
-        NSArray* lines = self.safeLines
-        NSInteger i = [self lineIndexAtPosition:line.position]; ## Note: We're using lineIndexAtPosition because it's *way* faster
+    def nextLine(line: Line) -> Line:
+    
+        lines: list = self.safeLines
+        i: int = self.lineIndexAtPosition(line.position) ## Note: We're using lineIndexAtPosition because it's *way* faster
         
-        if (i != NSNotFound and i < lines.count - 1) return lines[i + 1]
-        else return None
-    }
-
-    ### Returns the next outline item of given type
-    ### @param type Type of the outline element (heading/section)
-    ### @param position Position where to start the search
-    def Line*)nextOutlineItemOfType:(LineType)type from:(NSInteger)position
-    {
-        return [self nextOutlineItemOfType:type from:position depth:NSNotFound]
-    }
+        if (i != None) and (i < len(lines) - 1):
+            return lines[i + 1]
+        else:
+            return None
+    
 
     ### Returns the next outline item of given type
     ### @param type Type of the outline element (heading/section)
     ### @param position Position where to start the search
     ### @param depth Desired hierarchical depth (ie. 0 for top level objects of this type)
-    def Line*)nextOutlineItemOfType:(LineType)type from:(NSInteger)position depth:(NSInteger)depth
-    {
-        NSInteger idx = [self lineIndexAtPosition:position] + 1
-        NSArray* lines = self.safeLines
+    def nextOutlineItemOfType(_type: LineType, position: int, depth: int) -> Line:
+        idx: int = self.lineIndexAtPosition(position) + 1
+        lines: list = self.safeLines
         
-        for (NSInteger i=idx; i<lines.count; i++) {
-            Line* line = lines[i]
+        for i in range(idx, len(lines)): 
+            line = lines[i]
             
             ## If no depth was specified, we'll just pass this check.
-            NSInteger wantedDepth = (depth == NSNotFound) ? line.sectionDepth : depth
+            wantedDepth: int = line.sectionDepth if (depth == NSNotFound) else depth
             
-            if (line.type == type and wantedDepth == line.sectionDepth) {
+            if (line.type == type and wantedDepth == line.sectionDepth):
                 return line
-            }
-        }
-        
-        return None
-    }
+            
 
-    ### Returns the previous outline item of given type
-    ### @param type Type of the outline element (heading/section)
-    ### @param position Position where to start the seach
-    def Line*)previousOutlineItemOfType:(LineType)type from:(NSInteger)position {
-        return [self previousOutlineItemOfType:type from:position depth:NSNotFound]
-    }
+        return None
+    
+    
     ### Returns the previous outline item of given type
     ### @param type Type of the outline element (heading/section)
     ### @param position Position where to start the search
     ### @param depth Desired hierarchical depth (ie. 0 for top level objects of this type)
-    def Line*)previousOutlineItemOfType:(LineType)type from:(NSInteger)position depth:(NSInteger)depth
-    {
-        NSInteger idx = [self lineIndexAtPosition:position] - 1
-        if (idx == NSNotFound or idx < 0) return None
+    def previousOutlineItemOfType(_type: LineType, 
+                                  position: int,
+                                  depth: int) -> Line:
+    
+        idx: int = self.lineIndexAtPosition(position) - 1
+        if (idx == None) or (idx < 0):
+            return None
         
-        NSArray* lines = self.safeLines
+        lines: list = self.safeLines
         
-        for (NSInteger i=idx; i>=0; i--) {
-            Line* line = lines[i]
+        for i in range(0, idx):
+            line: Line = lines[i]
 
             ## If no depth was specified, we'll just pass this check.
-            NSInteger wantedDepth = (depth == NSNotFound) ? line.sectionDepth : depth
+            wantedDepth: int = line.sectionDepth if (depth == NSNotFound) else depth
             
-            if (line.type == type and wantedDepth == line.sectionDepth) {
+            if (line.type == type and wantedDepth == line.sectionDepth):
                 return line
-            }
-        }
-        
         return None
-    }
 
-    def Line *)lineWithUUID:(NSString *)uuid
-    {
-        for (Line* line in self.lines) {
-            if ([line.uuidString isEqualToString:uuid]) return line
-        }
-        return None
-    }
+    #this func should be called lineFromUUID, methinks
+    def lineWithUUID(_uuid: uuid.uuid4) -> Line:
+    
+        for line in self.lines:
+            if line.uuidString == str(_uuid):
+                return line
+        return None'''
 
-
-    #pragma mark - Element blocks
+    #pragma mark - Element blocks ---- BACKBRUNER
 
     ### Returns the lines for a full dual dialogue block
-    def NSArray<NSArray<Line*>*>*)dualDialogueFor:(Line*)line isDualDialogue:(bool*)isDualDialogue {
-        if (!line.isDialogue and !line.isDualDialogue) return @[]
+    '''def NSArray<NSArray<Line*>*>*)dualDialogueFor:(Line*)line isDualDialogue:(bool*)isDualDialogue {
+        if (not line.isDialogue and not line.isDualDialogue) return @[]
         
         NSMutableArray<Line*>* left = NSMutableArray.new
         NSMutableArray<Line*>* right = NSMutableArray.new
@@ -2126,16 +2098,16 @@ class ContinuousFountainParser:
             ## Break at first normal character
             if (l.type == character) break
             
-            i--
+            i -= 1
         }
         
         ## Iterate forward
-        for (NSInteger j = i; j < lines.count; j++) {
+        for (NSInteger j = i; j < lines.count; j += 1) {
             Line* l = lines[j]
             
             ## Break when encountering a character cue (which is not the first line), and whenever seeing anything else than dialogue.
             if (j > i and l.type == character) break
-            elif (!l.isDialogue and !l.isDualDialogue and l.type != empty) break
+            elif (not l.isDialogue and not l.isDualDialogue and l.type != empty) break
             
             if (l.isDialogue) [left addObject:l]
             else [right addObject:l]
@@ -2147,30 +2119,33 @@ class ContinuousFountainParser:
         
         *isDualDialogue = (left.count > 0 and right.count > 0)
         
-        return @[left, right]
+        return [left, right]
     }
 
     ### Returns the lines for screenplay block in given range.
-    def NSArray<Line*>*)blockForRange:(NSRange)range {
-        NSMutableArray *blockLines = NSMutableArray.new
-        NSArray *lines
+    def blockForRange(self, _range: range) -> list[Line]:
+        blockLines: list = []
+        lines: list = []
         
-        if (range.length > 0) lines = [self linesInRange:range]
-        else lines = @[ [self lineAtPosition:range.location] ]
+        if (_range.length > 0):
+            lines = self.linesInRange(_range)
+        else:
+            lines = self.lineAtPosition(_range.location)
 
-        for (Line *line in lines) {
-            if ([blockLines containsObject:line]) continue
+        for line in lines:
+            if line in blockLines:
+                continue
             
-            NSArray *block = [self blockFor:line]
-            [blockLines addObjectsFromArray:block]
-        }
+            block: list = self.blockFor(line)
+            blockLines += block
+        
         
         return blockLines
-    }
-
+    
+    
     ### Returns the lines for full screenplay block associated with this line – a dialogue block, for example.
-    def NSArray<Line*>*)blockFor:(Line*)line
-    {
+    def blockFor:(Line*)line -> list[Line]:
+    
         NSArray *lines = self.lines
         NSMutableArray *block = NSMutableArray.new
         NSInteger blockBegin = [lines indexOfObject:line]
@@ -2184,18 +2159,18 @@ class ContinuousFountainParser:
                     blockBegin = h + 1
                     break
                 }
-                h--
+                h -= 1
             }
         }
         
         ## If the line is part of a dialogue block but NOT a character cue, find the start of the block.
-        if ( (line.isDialogueElement or line.isDualDialogueElement) and !line.isAnyCharacter) {
+        if ( (line.isDialogueElement or line.isDualDialogueElement) and not line.isAnyCharacter) {
             NSInteger i = blockBegin - 1
             while (i >= 0) {
                 ## If the preceding line is not a dialogue element or a dual dialogue element,
                 ## or if it has a length of 0, set the block start index accordingly
                 Line *precedingLine = lines[i]
-                if (!(precedingLine.isDualDialogueElement or precedingLine.isDialogueElement) or precedingLine.length == 0) {
+                if (not (precedingLine.isDualDialogueElement or precedingLine.isDialogueElement) or precedingLine.length == 0) {
                     blockBegin = i
                     break
                 }
@@ -2211,102 +2186,106 @@ class ContinuousFountainParser:
             [block addObject:l]
             if (l.type == empty or l.length == 0) break
             
-            i++
+            i += 1
         }
         
         return block
-    }
+    
 
-    def NSRange)rangeForBlock:(NSArray<Line*>*)block
-    {
-        NSRange range = NSMakeRange(block.firstObject.position, NSMaxRange(block.lastObject.range) - block.firstObject.position)
-        return range
-    }
+    def rangeForBlock(block: list[Line]) -> range:
+        _range = loc_len(block.firstObject.position, NSMaxRange(block.lastObject.range) - block.firstObject.position) # syntax hurty: RANGE
+        return _range'''
+    
 
 
     #pragma mark - Line position lookup and convenience methods
 
     ## Cached line for lookup
-    NSUInteger prevLineAtLocationIndex = 0
+    '''prevLineAtLocationIndex: int = 0
 
     ### Returns line at given POSITION, not index.
-    def Line*)lineAtIndex:(NSInteger)position
-    {
-        return [self lineAtPosition:position]
-    }
+    def lineAtIndex(position: int) -> Line:
+        return self.lineAtPosition(position)
+    
 
-
-    ''' Returns the index in lines array for given line. This method might be called multiple times, so we'll cache the result.
-    This is a *very* small optimization, we're talking about `0.000001` vs `0.000007`. It's many times faster, but doesn't actually have too big of an effect.
-    '''
-    NSInteger previousIndex = NSNotFound
-    def NSUInteger)indexOfLine:(Line*)line
-    {
-        NSArray *lines = self.safeLines
+    # Returns the index in lines array for given line. This method might be called multiple times, so we'll cache the result.
+    # This is a *very* small optimization, we're talking about `0.000001` vs `0.000007`. It's many times faster, but doesn't actually have too big of an effect.
+    
+    previousIndex = None # ? orphaned assignment?
+    def indexOfLine(line: Line) -> int:
+        lines: list = self.safeLines
         
-        if (previousIndex < lines.count and previousIndex >= 0) {
-            if (line == (Line*)lines[previousIndex]) {
+        if (previousIndex < lines.count and previousIndex >= 0):
+            if (line == lines[previousIndex]):
                 return previousIndex
-            }
-        }
+            
         
-        NSInteger index = [lines indexOfObject:line]
+        
+        index: int = [lines indexOfObject:line] # syntax hurty : indexOfObject
         previousIndex = index
 
         return index
-    }
+    
 
-    NSInteger previousSceneIndex = NSNotFound
-    def NSUInteger)indexOfScene:(OutlineScene*)scene
-    {
-        NSArray *outline = self.safeOutline
+    previousSceneIndex: int = None # why is this assignment orphaned between functions?
+
+    def indexOfScene(scene: OutlineScene)-> int:
+        outline: list = self.safeOutline
         
-        if (previousSceneIndex < outline.count and previousSceneIndex >= 0) {
-            if (scene == outline[previousSceneIndex]) return previousSceneIndex
-        }
+        if (previousSceneIndex < len(outline) and previousSceneIndex >= 0):
+            if scene == outline[previousSceneIndex]:
+                return previousSceneIndex
         
-        NSInteger index = [outline indexOfObject:scene]
+        
+        index: int = [outline indexOfObject:scene] # syntax hurty: indexOfObject
         previousSceneIndex = index
 
         return index
-    }
+    
 
 
-    '''This method finds an element in array that statisfies a certain condition, compared in the block. To optimize the search, you should provide `searchOrigin`  and the direction.
-    @returns Returns either the found element or None if none was found.
-    @param array The array to be searched.
-    @param searchOrigin Starting index of the search, preferrably the latest result you got from this same method.
-    @param descending Set the direction of the search: true for descending, false for ascending.
-    @param cacheIndex Pointer for retrieving the index of the found element. Set to NSNotFound if the result is None.
-    @param compare The block for comparison, with the inspected element as argument. If the element statisfies your conditions, return true.
-    '''
-    def id _Nullable)findNeighbourIn:(NSArray*)array origin:(NSUInteger)searchOrigin descending:(bool)descending cacheIndex:(NSUInteger*)cacheIndex block:(BOOL (^)(id item, NSInteger idx))compare
-    {
+    # This method finds an element in array that statisfies a certain condition, compared in the block. To optimize the search, you should provide `searchOrigin`  and the direction.
+    # @returns Returns either the found element or None if none was found.
+    # @param array The array to be searched.
+    # @param searchOrigin Starting index of the search, preferrably the latest result you got from this same method.
+    # @param descending Set the direction of the search: true for descending, false for ascending.
+    # @param cacheIndex Pointer for retrieving the index of the found element. Set to NSNotFound if the result is None.
+    # @param compare The block for comparison, with the inspected element as argument. If the element statisfies your conditions, return true.
+    
+
+    # NOTE: Holy shit this func declaration
+    def findNeighbourIn(array: list, 
+                        searchOrigin: int, 
+                        descending: bool,
+                        cacheIndex: int, 
+                        block:(BOOL (^)(id item, NSInteger idx))compare) # I really need to figure out blocks ...
+    
         ## Don't go out of range
-        if (NSLocationInRange(searchOrigin, NSMakeRange(-1, array.count))) {
-            ''' Uh, wtf, how does this work?
-                We are checking if the search origin is in range from -1 to the full array count,
-                so I don't understand how and why this could actually work, and why are we getting
-                the correct behavior. The magician surprised themself, too.
-            '''
+        if (NSLocationInRange(searchOrigin, loc_len(-1, array.count))) {
+            ## Uh, wtf, how does this work?
+            ## We are checking if the search origin is in range from -1 to the full array count,
+            ## so I don't understand how and why this could actually work, and why are we getting
+            ## the correct behavior. The magician surprised themself, too.
+            ##
             return None
         }
         elif (array.count == 0) return None
         
         NSInteger i = searchOrigin
         NSInteger origin = (descending) ? i - 1 : i + 1
-        if (origin == -1) origin = array.count - 1
+        if origin == -1:
+            origin = array.count - 1
         
-        bool stop = NO
+        bool stop = False
         
-        do {
-            if (!descending) {
-                i++
+        do { # syntax hurty: python does not have a do... while loop, only while loops
+            if not descending:
+                i += 1
                 if (i >= array.count) i = 0
-            } else {
-                i--
+            else:
+                i -= 1
                 if (i < 0) i = array.count - 1
-            }
+            
                     
             id item = array[i]
             
@@ -2317,30 +2296,31 @@ class ContinuousFountainParser:
             
             ## We have looped around the array (unsuccessfuly)
             if (i == searchOrigin or origin == -1) {
-                NSLog(@"Failed to find match for %@ - origin: %lu / searchorigin: %lu  -- %@", self.lines[searchOrigin], origin, searchOrigin, compare)
+                NSLog(@"Failed to find match for %@ - origin: %lu / searchorigin: %lu   -= 1 %@", self.lines[searchOrigin], origin, searchOrigin, compare)
                 break
             }
             
         } while (stop != YES)
         
-        *cacheIndex = NSNotFound
+        cacheIndex = NSNotFound
         return None
-    }
+    
 
 
 
-    ''' This method returns the line index at given position in document. It uses a cyclical lookup, so the method won't iterate through all the lines every time.
-    Instead, it first checks the line it returned the last time, and after that, starts to iterate through lines from its position and given direction. Usually we can find
-    the line with 1-2 steps, and as we're possibly iterating through thousands and thousands of lines, it's much faster than finding items by their properties the usual way.
-    '''
-    def NSUInteger)lineIndexAtPosition:(NSUInteger)position
-    {
-        NSArray* lines = self.safeLines
-        NSUInteger actualIndex = NSNotFound
+    # This method returns the line index at given position in document.
+    # 
+    # It uses a cyclical lookup, so the method won't iterate through all the lines every time.
+    # Instead, it first checks the line it returned the last time, and after that, starts to iterate through lines from its position and given direction. Usually we can find
+    # the line with 1-2 steps, and as we're possibly iterating through thousands and thousands of lines, it's much faster than finding items by their properties the usual way.
+    
+    def lineIndexAtPosition(position: int) -> int:
+        lines: list = self.safeLines
+        actualIndex: int = None
         NSInteger lastFoundPosition = 0
         
         ## First check if we are still on the same line as before
-        if (NSLocationInRange(_lastLineIndex, NSMakeRange(0, lines.count))) {
+        if (NSLocationInRange(_lastLineIndex, loc_len(0, lines.count))) {
             Line* lastEdited = lines[_lastLineIndex]
             lastFoundPosition = lastEdited.position
             
@@ -2350,57 +2330,58 @@ class ContinuousFountainParser:
         }
         
         ## Cyclical array lookup from the last found position
-        Line* result = [self findNeighbourIn:lines origin:_lastLineIndex descending:(position < lastFoundPosition) cacheIndex:&actualIndex block:^BOOL(id item, NSInteger idx) {
-            Line* l = item
+        result: Line = [self findNeighbourIn:lines origin:_lastLineIndex descending:(position < lastFoundPosition) cacheIndex:&actualIndex block:^BOOL(id item, NSInteger idx) {
+            l: Line = item
             return NSLocationInRange(position, l.range)
         }]
         
-        if (result != None) {
+        if (result is not None):
             _lastLineIndex = actualIndex
             _lastEditedLine = result
             
             return actualIndex
-        } else {
-            return (self.lines.count > 0) ? self.lines.count - 1 : 0
-        }
-    }
+        else:
+            return self.lines.count - 1 if (self.lines.count > 0) else 0
+        
 
     ### Returns the closest printable (visible) line for given line
-    def Line*)closestPrintableLineFor:(Line*)line
-    {
-        NSArray <Line*>* lines = self.lines
+    def closestPrintableLineFor(line: Line) -> Line:
+        lines: list = self.lines
         
-        NSInteger i = [lines indexOfObject:line]
-        if (i == NSNotFound) return None
+        i: int = [lines indexOfObject:line] # not sure what these three lines of code do...
+        if i is None:
+            return None
         
-        while (i >= 0) {
-            Line *l = lines[i]
+        while (i >= 0):
+            l: Line = lines[i]
             
-            if (l.type == action and i > 0) {
+            if (l.type == action and i > 0):
                 ## This might be part of a joined action paragraph block
-                Line *prev = lines[i-1]
-                if (prev.type == empty and !l.isInvisible) return l
-            } elif (!l.isInvisible) {
+                prev: Line = lines[i-1]
+                if (prev.type == LineType.empty) and (not l.isInvisible):
+                    return l
+            elif (not l.isInvisible):
                 return l
-            }
-            i--
-        }
+            
+            i -= 1
+        
         
         return None
-    }
+    
 
     ### Rerturns the line object at given position
     ### (btw, why aren't we using the other method?)
-    def Line*)lineAtPosition:(NSInteger)position
-    {
+    def lineAtPosition(position: int) -> Line:
+    
         ## Let's check the cached line first
         if (NSLocationInRange(position, _prevLineAtLocation.range)) return _prevLineAtLocation
         
-        NSArray *lines = self.safeLines; ## Use thread safe lines for this lookup
-        if (prevLineAtLocationIndex >= lines.count) prevLineAtLocationIndex = 0
+        lines: list = self.safeLines; ## Use thread safe lines for this lookup
+        if (prevLineAtLocationIndex >= len(lines)) prevLineAtLocationIndex = 0
         
         ## Quick lookup for first object
-        if (position == 0) return lines.firstObject
+        if (position == 0):
+            return lines[0]
         
         ## We'll use a circular lookup here.
         ## It's HIGHLY possible that we are not just randomly looking for lines,
@@ -2411,98 +2392,96 @@ class ContinuousFountainParser:
         NSUInteger cachedIndex
         
         bool descending = NO
-        if (_prevLineAtLocation and position < _prevLineAtLocation.position) {
-            descending = YES
-        }
-            
-        Line *line = [self findNeighbourIn:lines origin:prevLineAtLocationIndex descending:descending cacheIndex:&cachedIndex block:^BOOL(id item, NSInteger idx) {
+        if (_prevLineAtLocation and position < _prevLineAtLocation.position):
+            descending = True
+        
+
+        # syntax hurty: BLOCK    
+        line: Line = [self findNeighbourIn:lines origin:prevLineAtLocationIndex descending:descending cacheIndex:&cachedIndex block:^BOOL(id item, NSInteger idx) {
             Line *l = item
             if (NSLocationInRange(position, l.range)) return YES
             else return NO
         }]
         
-        if (line) {
+        if (line):
             _prevLineAtLocation = line
             prevLineAtLocationIndex = cachedIndex
             return line
-        }
+        
         
         return None
-    }
+    
 
     ### Returns the lines in given range (even overlapping)
-    def NSArray*)linesInRange:(NSRange)range
-    {
-        NSArray *lines = self.safeLines
-        NSMutableArray *linesInRange = NSMutableArray.array
+    def linesInRange(_range: range) -> list:
+        lines: list = self.safeLines
+        linesInRange: list = []
         
-        for (Line* line in lines) {
-            if ((NSLocationInRange(line.position, range) or
-                NSLocationInRange(range.location, line.textRange) or
-                NSLocationInRange(range.location + range.length, line.textRange)) and
-                NSIntersectionRange(range, line.textRange).length > 0) {
-                [linesInRange addObject:line]
-            }
-        }
+        for line in lines:
+            if ((NSLocationInRange(line.position, _range) or
+                NSLocationInRange(_range.location, line.textRange) or
+                NSLocationInRange(_range.location + _range.length, line.textRange)) and
+                NSIntersectionRange(_range, line.textRange).length > 0
+                ):
+                linesInRange.append(line)
         
         return linesInRange
-    }
+    
 
     ### Returns the scenes which intersect with given range.
-    def NSArray*)scenesInRange:(NSRange)range
-    {
-        NSMutableArray *scenes = NSMutableArray.new
-        NSArray *outline = self.safeOutline; ## Thread-safe outline
+    def scenesInRange(_range: range) -> list:
+    
+        scenes: list = []
+        outline: list = self.safeOutline; ## Thread-safe outline
         
         ## When length is zero, return just the scene at the beginning of range
-        if (range.length == 0) {
-            OutlineScene* scene = [self sceneAtPosition:range.location]
-            return (scene != None) ? @[scene] : @[]
-        }
+        if (_range.length == 0):
+            scene = [self sceneAtPosition:_range.location]
+            return scene if (scene is not None) else []
         
-        for (OutlineScene* scene in outline) {
-            NSRange intersection = NSIntersectionRange(range, scene.range)
+        
+        for scene in outline:
+            intersection: range = NSIntersectionRange(_range, scene.range) # syntax hurty: NSIntersectionRange
             if (intersection.length > 0) [scenes addObject:scene]
-        }
+        
         
         return scenes
-    }
+    
 
     ### Returns a scene which contains the given character index (position). An alias for `sceneAtPosition` for legacy compatibility.
-    def OutlineScene*)sceneAtIndex:(NSInteger)index { return [self sceneAtPosition:index]; }
+    def sceneAtIndex(index: int) -> OutlineScene:
+        return self.sceneAtPosition(index)
+    
 
     ### Returns a scene which contains the given position
-    def OutlineScene*)sceneAtPosition:(NSInteger)index
-    {
-        for (OutlineScene *scene in self.safeOutline) {
-            if (NSLocationInRange(index, scene.range) and scene.line != None) return scene
-        }
+    def sceneAtPosition(index: int) -> OutlineScene:
+
+        for scene in self.safeOutline:
+            if (NSLocationInRange(index, scene.range) and scene.line is not None):
+                return scene
+        
         return None
-    }
+    
 
     ### Returns all scenes contained by this section. You should probably use `OutlineScene.children` though.
     ### - note: Legacy compatibility. Remove when possible.
-    def NSArray*)scenesInSection:(OutlineScene*)topSection
-    {
-        if (topSection.type != section) return @[]
+    def scenesInSection(topSection: OutlineScene) -> list:
+    
+        if (topSection.type != section):
+            return []
         return topSection.children
-    }
+    
 
     ### Returns the scene with given number (string)
-    def OutlineScene*)sceneWithNumber:(NSString*)sceneNumber
-    {
-        for (OutlineScene *scene in self.outline) {
-            if ([scene.sceneNumber.lowercaseString isEqualToString:sceneNumber.lowercaseString]) {
+    def sceneWithNumber(sceneNumber: str) -> OutlineScene:
+    
+        for scene in self.outline:
+            if scene.sceneNumber.lower() == sceneNumber.lower():
                 return scene
-            }
-        }
-        return None
-    }
-
-
-
-    #pragma mark - Line identifiers (UUIDs)
-
+            
+        return None'''
+    #pragma mark - Line identifiers (UUIDs)  -= 1- BACKBURNER
+    '''
     ### Returns every line UUID as an arrayg
     def NSArray*)lineIdentifiers:(NSArray<NSUUID*>*)lines
     {
@@ -2516,23 +2495,23 @@ class ContinuousFountainParser:
     }
 
     ### Sets the given UUIDs to each line at the same index. Note that you can provide either an array of `NSString`s or __REAL__ `NSUUID`s.
-    def setIdentifiers:(NSArray*)uuids
-    {
-        for (NSInteger i = 0; i < uuids.count; i++) {
-            id item = uuids[i]
+    def setIdentifiers(uuids: list[uuid.uuid4]):
+    
+        for i in range(0, len(uuids)):
+            item = uuids[i]
             ## We can have either strings or real UUIDs in the array. Make sure we're using the correct type.
-            NSUUID *uuid = ([item isKindOfClass:NSString.class]) ? [NSUUID.alloc initWithUUIDString:item] : item
+            _uuid: uuid.uuid4 = [NSUUID.alloc initWithUUIDString:item] if (item.isinstance(str))  else item # syntax hurty: ternary operator
                     
-            if (i < self.lines.count and uuid != None) {
+            if (i < self.lines.count and uuid != None):
                 Line *line = self.lines[i]
                 line.uuid = uuid
-            }
-        }
-    }
+            
+        
+    
 
     ### Sets the given UUIDs to each outline element at the same index
     def setIdentifiersForOutlineElements:(NSArray*)uuids:
-        for (NSInteger i=0; i<self.outline.count; i++) {
+        for (NSInteger i=0; i<self.outline.count; i += 1) {
             if (i >= uuids.count) break
             
             OutlineScene* scene = self.outline[i]
@@ -2545,12 +2524,9 @@ class ContinuousFountainParser:
                 NSUUID* uuid = [NSUUID.alloc initWithUUIDString:uuidString]
                 scene.line.uuid = uuid
             }
-        }
+        }'''
 
-
-
-
-    #pragma mark - Note parsing
+    #pragma mark - Note parsing  -= 1- BACKBURNER
 
     ## All hope abandon ye who enter here.
     ## This is not a place of honor. No highly esteemed deed is commemorated here... nothing valued is here.
@@ -2575,7 +2551,7 @@ class ContinuousFountainParser:
     Note data object contains an empty string for every other line in the note block.
     '''
 
-    def parseNotesFor:(Line*)line at:(NSInteger)lineIndex oldType:(LineType)oldType
+    '''def parseNotesFor:(Line*)line at:(NSInteger)lineIndex oldType:(LineType)oldType
     {
         ## TODO: Make some fucking sense to this
         
@@ -2598,9 +2574,9 @@ class ContinuousFountainParser:
         unichar chrs[line.length]
         [line.string getCharacters:chrs]
 
-        __block NSRange noteRange = NSMakeRange(NSNotFound, 0)
+        __block NSRange noteRange = loc_len(NSNotFound, 0)
         
-        for (NSInteger i = 0; i < line.length - 1; i++) {
+        for (NSInteger i = 0; i < line.length - 1; i += 1) {
             unichar c1 = chrs[i]
             unichar c2 = chrs[i + 1]
             
@@ -2611,14 +2587,14 @@ class ContinuousFountainParser:
             elif (c1 == ']' and c2 == ']' and noteRange.location != NSNotFound) {
                 ## We are terminating a normal note
                 noteRange.length = i + 2 - noteRange.location
-                NSRange contentRange = NSMakeRange(noteRange.location + 2, noteRange.length - 4)
+                NSRange contentRange = loc_len(noteRange.location + 2, noteRange.length - 4)
                 NSString* content = [line.string substringWithRange:contentRange]
                 
                 BeatNoteData* note = [BeatNoteData withNote:content range:noteRange]
                 [line.noteData addObject:note]
                 [line.noteRanges addIndexesInRange:noteRange]
                 
-                noteRange = NSMakeRange(NSNotFound, 0)
+                noteRange = loc_len(NSNotFound, 0)
             }
             elif (c1 == ']' and c2 == ']') {
                 ## We need to look back to see if this note is part of a note block
@@ -2653,7 +2629,7 @@ class ContinuousFountainParser:
             [self parseNoteOutFrom:i positionInLine:positionInLine]
         }
     }
-    # !? fucntion too much big ?
+    # not ? fucntion too much big ?
     def parseNoteOutFrom:(NSInteger)lineIndex positionInLine:(NSInteger)position
     {
         if (lineIndex == NSNotFound) return
@@ -2662,7 +2638,7 @@ class ContinuousFountainParser:
         bool cancel = false; ## Check if we should remove the note block from existence
         Line* lastLine
         
-        for (NSInteger i=lineIndex; i<_lines.count; i++) {
+        for (NSInteger i=lineIndex; i<_lines.count; i += 1) {
             Line* l = _lines[i]
             
             if (l.type == empty) cancel = true
@@ -2692,21 +2668,21 @@ class ContinuousFountainParser:
             NSInteger p = NSNotFound
             if (idx == affectedLines.firstIndex and [l canBeginNoteBlockWithActualIndex:&p]) {
                 ## First line
-                range = NSMakeRange(p, l.length - p)
+                range = loc_len(p, l.length - p)
                 
                 ## Find color in the first line of a note
-                if (!cancel) {
+                if (not cancel) {
                     NSString* firstNote = [l.string substringWithRange:range]
                     NSInteger cIndex = [firstNote rangeOfString:@":"].location
-                    if (cIndex != NSNotFound) color = [firstNote substringWithRange:NSMakeRange(2, cIndex - 2 )]
+                    if (cIndex != NSNotFound) color = [firstNote substringWithRange:loc_len(2, cIndex - 2 )]
                 }
                 
             } elif ([l canTerminateNoteBlockWithActualIndex:&p]) {
                 ## Last line
-                range = NSMakeRange(0, p+2)
+                range = loc_len(0, p+2)
             } else {
                 ## Line in the middle
-                range = NSMakeRange(0, l.length)
+                range = loc_len(0, l.length)
             }
             
             if (range.location == NSNotFound or range.length == NSNotFound) return
@@ -2714,7 +2690,7 @@ class ContinuousFountainParser:
             if (cancel) {
                 [_changedIndices addIndex:idx]
                 
-                if (!l.noteIn and idx != affectedLines.firstIndex and l.type != empty) {
+                if (not l.noteIn and idx != affectedLines.firstIndex and l.type != empty) {
                     *stop = true
                     return
                 }
@@ -2742,7 +2718,7 @@ class ContinuousFountainParser:
                 }
                 
             
-                if (!cancel) {
+                if (not cancel) {
                     if (idx > affectedLines.firstIndex) {
                         [noteContent appendString:@"\n"]
                         
@@ -2767,9 +2743,9 @@ class ContinuousFountainParser:
         if (cancel or noteContent.length <= 4) return
         
         ## Create the actual note
-        [noteContent setString:[noteContent substringWithRange:NSMakeRange(2, noteContent.length - 4 )]]
+        [noteContent setString:[noteContent substringWithRange:loc_len(2, noteContent.length - 4 )]]
         
-        BeatNoteData* note = [BeatNoteData withNote:noteContent range:NSMakeRange(position, firstLine.length - position)]
+        BeatNoteData* note = [BeatNoteData withNote:noteContent _range=loc_len(position, firstLine.length - position)]
         note.multiline = true
         note.color = color
         
@@ -2787,14 +2763,14 @@ class ContinuousFountainParser:
         
         NSInteger noteStartLine = NSNotFound
         
-        for (NSInteger i=idx; i>=0; i--) {
+        for (NSInteger i=idx; i>=0; i -= 1) {
             Line* l = lines[i]
             if (l.type == empty and i < idx) break;   ## Stop if we're not in a block
             
             unichar chrs[l.length]
             [l.string getCharacters:chrs]
             
-            for (NSInteger k=l.string.length-1; k>=0; k--) {
+            for (NSInteger k=l.string.length-1; k>=0; k -= 1) {
                 if (k > 0) {
                     unichar c1 = chrs[k]
                     unichar c2 = chrs[k-1]
@@ -2815,7 +2791,7 @@ class ContinuousFountainParser:
             if (noteStartLine != NSNotFound) break
         }
             
-        return noteStartLine
+        return noteStartLine'''
 
 
 
@@ -2843,7 +2819,7 @@ class ContinuousFountainParser:
 
     #pragma mark - Debugging tools
 
-    def report()
+    '''def report()
         lastPos = 0
         lastLen = 0
         for (line in self.lines) {
@@ -2857,14 +2833,10 @@ class ContinuousFountainParser:
             }
             lastLen = line.string.length + 1
             lastPos = line.position
-        }
+        }'''
 
-
-
-
-
- '''
- Thank you, Hendrik Noeller, for making Beat possible.
- Without your massive original work, any of this had never happened.
- '''
+'''
+Thank you, Hendrik Noeller, for making Beat possible.
+Without your massive original work, any of this had never happened.
+'''
  
