@@ -68,21 +68,21 @@ class ContinuousFountainParser:
     ## Cached line set for UUID creation
     cachedLines: list # syntax hurty: MUTABLE SETS and UUID
 
-    macros: BeatMacroParser
+    # macros: BeatMacroParser
     titlePage: list
     ##
     prevLineAtLocation: Line
 
     # pragma mark - Initializers
-    def __init__(self):
+    def __init__(self, string:str = "", delegate: any = None):
    
         self.lines = []
         self.outline = []
-        self.changedIndices = []
+        self.changedIndices = set()
         self.titlePage = []
         self.storylines = []
         
-        # self.delegate = delegate
+        self.delegate = delegate
         # self.nonContinuous = nonContinuous
         # self.staticDocumentSettings = settings
         
@@ -92,7 +92,7 @@ class ContinuousFountainParser:
         else:
             self.staticParser = False'''
         
-        # self.parseText(string)
+        self.parseText(string)
         # [self updateMacros]
 
     ### Extracts the title page from given string
@@ -114,9 +114,10 @@ class ContinuousFountainParser:
         
         text += "\n"
         
-        parser = ContinuousFountainParser()
+        # parser = ContinuousFountainParser(string)
         # parser.updateMacros() ## Resolve macros
-        return parser.titlePage # what does returning this title page do?
+        # return parser.titlePage # what does returning this title page do?
+        return self.titlePage
     
 
 
@@ -185,7 +186,7 @@ class ContinuousFountainParser:
 
     #pragma mark Bulk parsing
 
-    def parseText(self, text: str):
+    def parseText(self, text: str) -> list[Line]:
         self.lines = []
         
         if (text == None): text = ""
@@ -196,35 +197,40 @@ class ContinuousFountainParser:
         
         position: int = 0; ## To track at which position every line begins
         
-        previousLine: Line
+        previousLine: Line = Line()
         
         for rawLine in lines:
             index: int = len(self.lines)
-            line: Line = Line(string=rawLine, position=position, parser=self)
+            line: Line = Line(string=rawLine, position=position, parser=ContinuousFountainParser)
             self.lines.append(line)
             
             self.parseTypeAndFormattingForLine(line, index=index)
             
             ## Quick fix for mistaking an ALL CAPS action for a character cue
-            if (previousLine.type == LineType.character and (line.string.length < 1 or line.type == LineType.empty)):
+            
+            if (previousLine.type == LineType.character 
+                and ((len(line.string) < 1) or (line.type == LineType.empty))):
                 
-                previousLine.type = self.parseLineTypeFor(line, atIndex=(index - 1))
+                previousLine.type = self.parseLineTypeFor(line, index=(index - 1))
+                
                 if (previousLine.type == LineType.character): 
                     previousLine.type = LineType.action
             
                     
-            position += rawLine.length + 1; ## +1 for newline character # NOTE: since this code adds 1 for newlines, we should NOT use 'keepends' when using str.splitlines()
+            position += len(rawLine) + 1; ## +1 for newline character # NOTE: since this code adds 1 for newlines, we should NOT use 'keepends' when using str.splitlines()
             previousLine = line
+        
+        return self.lines
         
         
         ## Reset outline
-        self.changeInOutline = True
+        # self.changeInOutline = True
         # self.updateOutline()
         # self.outlineChanges = OutlineChanges() # ? What or where is OutlineChanges? Is it a struct or a class?
         
         ## Reset changes (to force the editor to reformat each line)
 
-        self.changedIndices.update(range(len(self.lines))) 
+        # self.changedIndices.update(range(len(self.lines))) 
         
         ## Set identifiers (if applicable)
         # self.setIdentifiersForOutlineElements(self.documentSettings.get(DocSettingHeadingUUIDs)) # syntax hurty
@@ -689,40 +695,42 @@ class ContinuousFountainParser:
     # ??? Don't know what these do
     #pragma mark - Macros  -= 1- BACKBURNER
 
-    def updateMacros
-    {
-        BeatMacroParser* parser = BeatMacroParser.new
-        NSArray* lines = self.safeLines
+    '''def updateMacros(self):
+        parser: BeatMacroParser = BeatMacroParser()
+        lines: list = self.safeLines
         
-        for (NSInteger i=0; i<lines.count; i += 1) {
-            Line* l = lines[i]
-            if (l.macroRanges.count == 0) continue
+        for i in range(len(lines)):
+            l: Line = lines[i]
+            if (len(l.macroRanges) == 0):
+                continue
             
-            [self resolveMacrosOn:l parser:parser]
+            self.resolveMacrosOn(l, parser)
             if (l.isOutlineElement or l.type == synopse) {
-                [self addUpdateToOutlineAtLine:l didChangeType:false]
+                self.addUpdateToOutlineAtLine(l didChangeType=false)
             }
-        }
-    }
+        
+    
 
-    def resolveMacrosOn:(Line*)line parser:(BeatMacroParser*)macroParser
-    {
-        NSDictionary* macros = line.macros
+    def resolveMacrosOn(line, parser=macroParser):
+    
+        macros: dict = line.macros
         
-        line.resolvedMacros = NSMutableDictionary.new
+        line.resolvedMacros = {}
         
-        NSArray<NSValue*>* keys = [macros.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSValue*  _Nonnull obj1, NSValue*  _Nonnull obj2) {
-            if (obj1.rangeValue.location > obj2.rangeValue.location) return true
+        keys: list[any] = [macros.keys() sortedArrayUsingComparator:^NSComparisonResult(NSValue*  _Nonnull obj1, NSValue*  _Nonnull obj2) { ### syntax hurty
+            if (obj1.rangeValue.location > obj2.rangeValue.location):
+                return true
             return false
         }]
         
-        for (NSValue* range in keys) {
-            NSString* macro = macros[range]
-            id value = [macroParser parseMacro:macro]
+        for _range in keys:
+            macro: str = macros[_range]
+            value = macroParser.parseMacro(macro)
             
-            if (value != None) line.resolvedMacros[range] = [NSString stringWithFormat:@"%@", value]
-        }
-    }
+            if (value != None):
+                line.resolvedMacros[_range] = "%" + value # NOTE: Look up other formatted strings with percent % signs, they probably need to be added back
+        '''
+    
 
 
     #pragma mark - Parsing Core
@@ -738,10 +746,11 @@ class ContinuousFountainParser:
         line.type = self.parseLineTypeFor(line, index=index)
         
         ## Make sure we didn't receive a disabled type
-        if line.type in self.disabledTypes: #IDK how disabled types are supposed to work
-            if (line.length > 0): 
-                line.type = LineType.action
-            else: line.type = LineType.empty
+        if self.delegate is not None:
+            if line.type in self.delegate.disabledTypes: #IDK how disabled types are supposed to work
+                if (line.length > 0): 
+                    line.type = LineType.action
+                else: line.type = LineType.empty
         
         
         length: int = len(line.string)
@@ -749,7 +758,7 @@ class ContinuousFountainParser:
         charArray = line.string
         
         ## Parse notes
-        self.parseNotesFor(line, at=index, oldType=oldType)
+        # self.parseNotesFor(line, at=index, oldType=oldType)
         
         ## Omits have stars in them, which can be mistaken for formatting characters.
         ## We store the omit asterisks into the "excluded" index set to avoid this mixup.
@@ -760,12 +769,12 @@ class ContinuousFountainParser:
         ## while omitIn and noteIn tell that are a part of another omitted/note block.
         
         previousLine: Line
-        if (index <= self.lines.count) and (index > 0):
+        if (index <= len(self.lines)) and (index > 0):
             previousLine: Line = self.lines[index-1]
         else:
             previousLine = None
         
-        line.omittedRanges = self.rangesOfOmitChars(charArray,
+        '''line.omittedRanges = self.rangesOfOmitChars(charArray,
                                                     length=         length,
                                                     line=           line,
                                                     lastLineOut=    previousLine.omitOut,
@@ -793,7 +802,7 @@ class ContinuousFountainParser:
                                                    endString=       fc.UNDERLINE_CHAR,
                                                    delimLength=     fc.UNDERLINE_PATTERN_LENGTH,
                                                    excludes=        None,
-                                                   line=            line)
+                                                   line=            line)'''
 
         '''line.macroRanges = self.rangesInChars=charArray # syntax hurty: MACROS
                                     ofLength=length
@@ -804,7 +813,7 @@ class ContinuousFountainParser:
                                         line=line]'''
         
         ## Intersecting indices between bold & italic are boldItalic
-        if len(line.boldRanges) and len(line.italicRanges):
+        '''if len(line.boldRanges) and len(line.italicRanges):
             line.boldItalicRanges = line.italicRanges.indexesIntersectingIndexSet(line.boldRanges) # syntax hurty: INTERSECTING INDEXES
         else:
             line.boldItalicRanges = set()
@@ -815,17 +824,17 @@ class ContinuousFountainParser:
             if (line.sceneNumberRange.length == 0): #syntax hurty: RANGE
                 line.sceneNumber = ""
             else:
-                line.sceneNumber = line.string[line.sceneNumberRange] #syntax hurty: RANGE
+                line.sceneNumber = line.string[line.sceneNumberRange]''' #syntax hurty: RANGE
             
         
         
         ## set color for outline elements
-        if (line.type == LineType.heading or line.type == LineType.section or line.type == LineType.synopse):
-            line.color = self.colorForHeading(line)
+        '''if (line.type == LineType.heading or line.type == LineType.section or line.type == LineType.synopse):
+            line.color = self.colorForHeading(line)'''
         
         
         ## Markers
-        line.marker = self.markerForLine(line)
+        # line.marker = self.markerForLine(line)
         
         if (line.isTitlePage):
             if ":" in line.string and len(line.string) and len(line.string) > 0:
@@ -838,7 +847,45 @@ class ContinuousFountainParser:
                 else:
                     line.titleRange = loc_len(0, 0)
             
-        
+    
+
+    def handle_empty_lines(self, previousLine, nextLine, line,) -> LineType:
+        if (len(line.string)):
+            if previousLine is not None: # added this line, to make funny errors go away, not sure if this is best approach
+                if (previousLine.isDialogue or previousLine.isDualDialogue):
+                    ## If preceding line is formatted as dialogue BUT it's empty, we'll just return empty.
+                    if (len(previousLine.string) == 0):
+                        return LineType.empty
+                    
+                    ## If preceeded by a character cue, always return dialogue
+                    if (previousLine.type == LineType.character):
+                        return LineType.dialogue
+                    elif (previousLine.type == LineType.dualDialogueCharacter):
+                        return LineType.dualDialogue
+                
+                    # selection: int = self.delegate.selectedRange.location if (True) else 0 # syntax hurty self.delegate ???
+                
+                ## If it's any other dialogue line and we're editing it, return dialogue
+                if (
+                    (
+                        previousLine.isAnyDialogue 
+                        or previousLine.isAnyParenthetical
+                    ) 
+                    and previousLine.length > 0 
+                    and (
+                        nextLine.length == 0 
+                        or nextLine is None
+                        ) 
+                    # and selection in rangeFromLocLen(line._range)
+                ):
+
+                    return LineType.dialogue if (previousLine.isDialogue) else LineType.dualDialogue
+                
+            
+            
+            return LineType.empty
+        else:
+            return None
     
 
     ### Parses the line type for given line. It *has* to know its line index.
@@ -856,7 +903,10 @@ class ContinuousFountainParser:
             previousIsEmpty = True
         
         ## Check if this line was forced to become a character cue in editor (by pressing tab)    
-        if (line.forcedCharacterCue or self.characterInputForLine == line):
+        if (
+            line.forcedCharacterCue 
+            #or self.characterInputForLine == line
+            ):
             line.forcedCharacterCue = False
             ## 94 = ^ (this is here to avoid issues with Turkish alphabet)
             if (line.lastCharacter == 94):
@@ -866,45 +916,18 @@ class ContinuousFountainParser:
         
         
         ## Handle empty lines first
-    
-        if (line.length == 0):
-            if (previousLine.isDialogue or previousLine.isDualDialogue):
-                ## If preceding line is formatted as dialogue BUT it's empty, we'll just return empty.
-                if (previousLine.string.length == 0):
-                    return LineType.empty
-                
-                ## If preceeded by a character cue, always return dialogue
-                if (previousLine.type == LineType.character):
-                    return LineType.dialogue
-                elif (previousLine.type == LineType.dualDialogueCharacter):
-                    return LineType.dualDialogue
-                
-            selection: int = self.delegate.selectedRange.location if (True) else 0 # syntax hurty - threads
-                
-                ## If it's any other dialogue line and we're editing it, return dialogue
-            if (
-                (
-                    previousLine.isAnyDialogue 
-                    or previousLine.isAnyParenthetical
-                ) 
-                and previousLine.length > 0 
-                and (
-                    nextLine.length == 0 
-                    or nextLine is None
-                    ) 
-                and selection in rangeFromLocLen(line._range)
-               ):
-
-                return LineType.dialogue if (previousLine.isDialogue) else LineType.dualDialogue
-                
-            
-            
-            return LineType.empty
+        empty_lines_result = self.handle_empty_lines(
+            previousLine=previousLine,
+            nextLine=nextLine,
+            line=line)
         
+        if empty_lines_result is not None:
+            return empty_lines_result
         
         ## Check forced elements
-        firstChar: str = line[0]
-        lastChar: str = line[-1]
+        firstChar: str = line.string[:1]
+        print("firstChar", line.string[:1], " Of string: ", line.string) ## these lines do not have strings ??
+        lastChar: str = line.string[-1:]
         
         ## Also, lets add the first \ as an escape character
         if (firstChar == '\\'):
@@ -923,11 +946,11 @@ class ContinuousFountainParser:
         if trimmedString == "===":
             return LineType.pageBreak
         
-        elif (firstChar == 'not '):
+        elif (firstChar == '! '):
             ## Action or shot
             if (line.length > 1):
                 secondChar: str = line.string[1]
-                if (secondChar == 'not '):
+                if (secondChar == '! '):
                     return LineType.shot
             
             return LineType.action
@@ -958,7 +981,7 @@ class ContinuousFountainParser:
         if (previousLine == None or previousLine.isTitlePage):
             titlePageType: LineType = self.parseTitlePageLineTypeFor(line=line, 
                                                                      previousLine=previousLine,
-                                                                     lineIndex=index)
+                                                                     index=index)
             if (titlePageType is not None):
                 return titlePageType
         
@@ -1017,8 +1040,8 @@ class ContinuousFountainParser:
                         twoLinesOver: Line = self.lines[index+2]
                         
                         ## Next line is empty, line after that isn't - and we're not on that particular line
-                        if ((nextLine.string.length == 0 and twoLinesOver.string.length > 0) or
-                            (nextLine.string.length == 0 and self.selectedRange.location in rangeFromLocLen(nextLine._range))
+                        if ((nextLine.string.length == 0 and twoLinesOver.string.length > 0) #or
+                            # (nextLine.string.length == 0 and self.selectedRange.location in rangeFromLocLen(nextLine._range))
                             ):
                             return LineType.action
                         
@@ -1141,12 +1164,12 @@ class ContinuousFountainParser:
         
     
 
-    def sceneNumberForChars(string: str, length: int) -> loc_len:
+    def sceneNumberForChars(self, string: str, length: int) -> loc_len:
         backNumberIndex: int = None
         note: int = 0
         
         for i in range(length-1, 0):
-            c: str = string[i]
+            c: str = string[:i]
             
             ## Exclude note ranges: [[ Note ]]
             if (c == ' '):
@@ -1235,7 +1258,7 @@ class ContinuousFountainParser:
         headingColor: str = "" #syntax hurty: __block
         line.colorRange = loc_len(0, 0)
         
-        noteContents: dict[any, str] = line.noteContentsAndRanges # NOTE: does obj-c flip the key and value ??
+        # noteContents: dict[any, str] = line.noteContentsAndRanges # NOTE: does obj-c flip the key and value ??
         for key in noteContents.keys():
             _range = key.rangeValue #syntax hurty: RANGE Value ???
             content: str = noteContents[key].lower
@@ -1266,7 +1289,7 @@ class ContinuousFountainParser:
     ### Returns the title page lines as string
     def titlePageAsString(self,) -> str:
         string: str = ""
-        for line in self.safeLines:
+        for line in self.lines:
             if (not line.isTitlePage):
                 break
             string += (line.string + "\n")
@@ -1277,7 +1300,7 @@ class ContinuousFountainParser:
     ### Returns just the title page lines
     def titlePageLines(self) -> list[Line]:
         lines: list = []
-        for line in self.safeLines:
+        for line in self.lines:
             if (not line.isTitlePage):
                 break
             lines.append(line)

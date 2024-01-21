@@ -78,7 +78,7 @@ class Line:
     ### Color for outline element (`nil` or empty if no color is set)
     color: str
     ### This line was forced to be a character cue in editor
-    forcedCharacterCue: bool
+    forcedCharacterCue: bool = False
  
     # @interface Line() # syntax hurty : these 3 properties are private properties I guess
     oldHash: int
@@ -118,10 +118,10 @@ class Line:
     #pragma mark - Initialization
 
     def __init__(self, 
-                       string: str, 
-                       position: int, 
-                       parser: any, # parser takes in a type of LineDelegate ?
-                       type: LineType = LineType.empty,): # this is wrong, this is not how type hinting should work
+                       string: str = "", 
+                       position: int = 0, 
+                       parser: any = None, # parser takes in a type of LineDelegate ?
+                       type: any = LineType.empty,): # this is wrong, this is not how type hinting should work
 
         if string is None:
             string = ""
@@ -361,17 +361,17 @@ class Line:
             case "Title Page Draft Date":
                 return LineType.titlePageDraftDate
             case "Title Page Unknown":
-                return LineType.LineType.titlePageUnknown
+                return LineType.titlePageUnknown
             case "Heading":
-                return LineType.LineType.heading
+                return LineType.heading
             case "Action":
-                return LineType.LineType.action
+                return LineType.action
             case "Character":
-                return LineType.LineType.character
+                return LineType.character
             case "Parenthetical":
-                return LineType.LineType.parenthetical
+                return LineType.parenthetical
             case "Dialogue":
-                return LineType.LineType.dialogue
+                return LineType.dialogue
             case "DD Character":
                 return LineType.dualDialogueCharacter
             case "DD Parenthetical":
@@ -762,7 +762,7 @@ class Line:
     ### Returns `true` if the line can begin a note block
     ### @param index Pointer to the index where the potential note block begins.
     def canBeginNoteBlockWithActualIndex(self, index: int) -> bool:
-        if (self.length > 30000): # NOTE: what is self.length ???
+        if (self.length > 30000):
             return False
         
         unichar chrs[self.string.length]
