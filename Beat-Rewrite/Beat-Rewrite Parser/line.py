@@ -113,15 +113,14 @@ class Line:
     
     originalString: str
 
-
-
     #pragma mark - Initialization
 
     def __init__(self, 
                        string: str = "", 
                        position: int = 0, 
                        parser: any = None, # parser takes in a type of LineDelegate ?
-                       type: any = LineType.empty,): # this is wrong, this is not how type hinting should work
+                       type: any = LineType.empty, # this is wrong, this is not how type hinting should work
+                       ): 
 
         if string is None:
             string = ""
@@ -148,24 +147,7 @@ class Line:
         # return self
     
 
-    '''def Line*)initWithString:(NSString*)string position:(NSInteger)position
-    {
-        return [[Line alloc] initWithString:string type:0 position:position parser:nil]
-    }
-    def Line*)initWithString:(NSString*)string position:(NSInteger)position parser:(id<LineDelegate>)parser
-    {
-        return [[Line alloc] initWithString:string type:0 position:position parser:parser]
-    }
-    def Line*)initWithString:(NSString *)string type:(LineType)type position:(NSInteger)position {
-        return [[Line alloc] initWithString:string type:type position:position parser:nil]
-    }
-
-    ### Init a line for non-continuous parsing
-    def Line*)initWithString:(NSString *)string type:(LineType)type {
-        return [[Line alloc] initWithString:string type:type position:-1 parser:nil]
-    }
-
-    ### Use this ONLY for creating temporary lines while paginating.
+    '''### Use this ONLY for creating temporary lines while paginating.
     def Line*)initWithString:(NSString *)string type:(LineType)type pageSplit:(bool)pageSplit {
         self = [super init]
         if (self) {
@@ -185,11 +167,7 @@ class Line:
  
     #pragma mark - Shorthands  --- BACKBURNER
 
-    '''def withString(self, string: str, type: LineType, parser: LineDelegate):
-        return self.initWithString(string=string, type=type, position=0, parser=parser)
-    
-    def withString(self, string: str, type: LineType):
-        return self.initWithString(string=string, type=type)
+    '''
 
     ### Use this ONLY for creating temporary lines while paginating
     def withString(self, string: str, type: LineType, pageSplit: bool):
@@ -431,53 +409,6 @@ class Line:
         } else {
             return _representedLine.position
         }
-    }'''
-
-    #pragma mark - Cloning --- BACKBURNER --- COMPREHENSION ISSUE
-
-    # This should be implemented as NSCopying */
-
-    #-(id)copy {
-    #     return [self clone]
-    # }
-
-    '''def Line*)clone {
-        Line* newLine = [Line withString:self.string type:self.type]
-        newLine.representedLine = self ## For live pagination, refers to the line in PARSER
-        newLine.uuid = self.uuid
-        newLine.position = self.position
-        
-        newLine.changed = self.changed
-        
-        newLine.beginsTitlePageBlock = self.beginsTitlePageBlock
-        newLine.endsTitlePageBlock = self.endsTitlePageBlock
-        
-        ##newLine.numberOfPrecedingFormattingCharacters = self.numberOfPrecedingFormattingCharacters
-        newLine.unsafeForPageBreak = self.unsafeForPageBreak
-        
-        newLine.resolvedMacros = self.resolvedMacros.mutableCopy
-        
-        newLine.revisionColor = self.revisionColor.copy ## This is the HIGHEST revision color on the line
-        if (self.revisedRanges) newLine.revisedRanges = self.revisedRanges.mutableCopy ## This is a dictionary of revision color names and their respective ranges
-        
-        if (self.italicRanges.count) newLine.italicRanges = self.italicRanges.mutableCopy
-        if (self.boldRanges.count) newLine.boldRanges = self.boldRanges.mutableCopy
-        if (self.boldItalicRanges.count) newLine.boldItalicRanges = self.boldItalicRanges.mutableCopy
-        if (self.noteRanges.count) newLine.noteRanges = self.noteRanges.mutableCopy
-        if (self.omittedRanges.count) newLine.omittedRanges = self.omittedRanges.mutableCopy
-        if (self.underlinedRanges.count) newLine.underlinedRanges = self.underlinedRanges.mutableCopy
-        if (self.sceneNumberRange.length) newLine.sceneNumberRange = self.sceneNumberRange
-        if (self.strikeoutRanges.count) newLine.strikeoutRanges = self.strikeoutRanges.mutableCopy
-        if (self.removalSuggestionRanges.count) newLine.removalSuggestionRanges = self.removalSuggestionRanges.mutableCopy
-        if (self.escapeRanges.count) newLine.escapeRanges = self.escapeRanges.mutableCopy
-        if (self.macroRanges) newLine.macroRanges = self.macroRanges.mutableCopy
-        
-        if (self.sceneNumber) newLine.sceneNumber = [NSString stringWithString:self.sceneNumber]
-        if (self.color) newLine.color = [NSString stringWithString:self.color]
-        
-        newLine.nextElementIsDualDialogue = self.nextElementIsDualDialogue
-        
-        return newLine
     }'''
 
     #pragma mark - Delegate methods --- BACKBURNER --- COMPREHENSION ISSUE
@@ -859,8 +790,8 @@ class Line:
 
     #pragma mark Centered
 
-    ### Returns TRUE if the line is *actually* centered.
-    def centered(self) -> bool:
+    ### Returns TRUE if the line is *actually* centered. --- SHIFT RESPONSIBILITY
+    def centered(self) -> bool: # The Line class should be a totally passive data container, should not have to do this calculation
         if (len(self.string) < 2): 
             return False
         return (self.string[0] == '>' 
@@ -1455,7 +1386,7 @@ class Line:
     
 
     def matchesUUIDString(self, _uuid: uuid.uuid4) -> bool:
-        if self._uuid == _uuid:
+        if str(self._uuid) == str(_uuid):
             return True
         else:
             return False
@@ -1667,12 +1598,10 @@ class Line:
     }'''
 
     #pragma mark - Helper methods --- BACKBURNER
-
-    '''def NSString*)trimmed {
-        return [self.string stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]
-    }
-
-    ### Joins a line into this line. Copies all stylization and offsets the formatting ranges.
+    def trimmed(self):
+        return self.string.strip()
+    
+    '''### Joins a line into this line. Copies all stylization and offsets the formatting ranges.
     def void)joinWithLine:(Line *)line
     {
         if (!line) return
@@ -1758,22 +1687,29 @@ class Line:
         
         return [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]
     }
-
-    def NSString*)titlePageKey {
-        if (self.string.length == 0) return @""
-        
-        NSInteger i = [self.string rangeOfString:@":"].location
-        if (i == NSNotFound or i == 0 or [self.string characterAtIndex:0] == ' ') return @""
-        
-        return [self.string substringToIndex:i].lowercaseString
-    }
-    def NSString*)titlePageValue {
-        NSInteger i = [self.string rangeOfString:@":"].location
-        if (i == NSNotFound) return self.string
-        
-        return [[self.string substringFromIndex:i+1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]
-    }
-
+    '''
+    def getTitlePageKey(self,) -> str:
+        if (len(self.string) == 0):
+            return ""
+        if ":" in self.string:
+            i: int = self.string.index(":")
+            if (i == None or i == 0 or [self.string[0]] == ' '):
+                return ""
+            return self.string[:i].lower()
+        else:
+            return ""
+    
+    def getTitlePageValue(self) -> str:
+        if ":" in self.string:
+            i: int = self.string.index(":")
+            if (i == None): 
+                return self.string
+            
+            return self.string[i+1:].strip()
+        else:
+            return ""
+    
+    '''
     ### Returns `true` for lines which should effectively be considered as empty when parsing.
     def effectivelyEmpty {
         if (self.type == empty or self.length == 0 or self.opensOrClosesOmission or self.type == section or self.type == synopse ||
@@ -1867,9 +1803,3 @@ class Line:
     #def description() -> str:
     #    return "Line: %s  (%s at %s) %s", self.string, self.typeAsString, self.position, (self.nextElementIsDualDialogue) ? @"Next is dual" : @"" ]
     
-
-    #pragma mark - Copy --- BACKBURNER
-
-    # def copyWithZone:(nullable NSZone *)zone {
-    #     return [self clone]
-    # }
