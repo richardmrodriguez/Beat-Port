@@ -31,6 +31,8 @@ class StaticFountainParser:
     title_page: list = []
     lines: list[Line] = []
 
+    title_page_done_populating: bool = False # TODO use this to skip title page parsing when we are done with title page elements
+
     disabledTypes: list[any] = []
 
     def get_parsed_lines_from_raw_string(self, text: str) -> list[Line]:
@@ -66,7 +68,7 @@ class StaticFountainParser:
                     ):
                     
                     
-                    previousLine.type = self.parseLineTypeFor(beat_line, index=index)
+                    previousLine.type = self.parseLineTypeFor(beat_line, index=(index - 1))
                     
                     if (previousLine.type == LineType.character): 
                         previousLine.type = LineType.action'''
@@ -174,7 +176,7 @@ class StaticFountainParser:
         # line.marker = self.markerForLine(line)
         
         if (line.isTitlePage):
-            if ":" in line.string and len(line.string) and len(line.string) > 0:
+            if ":" in line.string and len(line.string) > 0:
                 ## If the title doesn't begin with \t or space, format it as key name
                 if (
                     line.string[0] != ' ' and
@@ -192,7 +194,7 @@ class StaticFountainParser:
             index > 0) else None
         nextLine: Line = self.lines[index+1] if (
             (line != self.lines[-1]) 
-            # and (index+1 < len(self.lines)) What does this line do?
+            and (index+1 < len(self.lines))
             ) else None
         
         previousIsEmpty: bool  = False
@@ -200,23 +202,16 @@ class StaticFountainParser:
         trimmedString: str = line.string.strip() if (len(line.string) > 0) else ""
         
         ## Check for everything that is considered as empty
-        if (previousLine is None or index == 0):
-            previousIsEmpty = True
-        elif previousLine is not None:
-            if previousLine.string.strip() == "":
-                previousIsEmpty = True
-        
-        ## Check if this line was forced to become a character cue in editor (by pressing tab)    
-        '''if (
-            line.forcedCharacterCue 
-            #or self.characterInputForLine == line
+        if (
+            previousLine is None 
+            or index == 0 
             ):
-            line.forcedCharacterCue = False
-            ## 94 = ^ (this is here to avoid issues with Turkish alphabet)
-            if (line.string[-1] == 94):
-                return LineType.dualDialogueCharacter
-            else: 
-                return LineType.character'''
+            previousIsEmpty = True
+        elif (previousLine is not None 
+              and previousLine.type == LineType.empty):
+            
+            previousIsEmpty = True
+        
         
         
         ## Handle empty lines first
@@ -224,7 +219,6 @@ class StaticFountainParser:
             previousLine=previousLine,
             nextLine=nextLine,
             line=line)
-        
         if empty_lines_result != None:
             return empty_lines_result
         
@@ -238,7 +232,7 @@ class StaticFountainParser:
             line.escapeRanges.append(0)
         
         ## Forced whitespace
-        containsOnlyWhitespace: bool = True if line.string.strip() == "" else False ## Save to use again later
+        containsOnlyWhitespace: bool = True if ''.join(line.string.split()) == "" else False ## Save to use again later
         twoSpaces: bool = (
             firstChar == ' ' 
             and lastChar == ' ' 
@@ -260,8 +254,9 @@ class StaticFountainParser:
             return LineType.action
         
         elif (firstChar == '.' 
-              # and previousIsEmpty # why is this bool not operating properly?
+              and previousIsEmpty
               ):
+            # if line.string == ".HEADING": print("HEADING HERE") # DEBUG PRINT
             ## '.' forces a heading.
             ## Because our American friends love to shoot their guns like we Finnish people love our booze,
             ## screenwriters might start dialogue blocks with such "words" as '.44'
@@ -289,28 +284,28 @@ class StaticFountainParser:
                                                                      previousLine=previousLine,
                                                                      index=index)
             if (titlePageType is not None):
+                
                 return titlePageType
             
         
         ## Check for Transitions
         if (
             len(line.string) > 2 
-            and line.string[-1:] == ':' 
+            and line.string[-1] == ':' 
             and line.string == line.string.upper() 
             and previousIsEmpty
             ):
-
             return LineType.transitionLine
         
         
         ## Handle items which require an empty line before them (and we're not forcing character input)
-        elif (previousIsEmpty 
+        elif (previousIsEmpty
               and len(line.string)>= 3 
               #and line != self.characterInputForLine
               ):
+            
             ## Heading
             firstChars: str = line.string[:3].lower()
-            
             if (firstChars == "int" or
                 firstChars == "ext" or
                 firstChars == "est" or
@@ -330,16 +325,17 @@ class StaticFountainParser:
                 
             
             
-            ## Character
-            character_result = self.check_if_character(
-                line=line,
-                nextLine=nextLine, 
-                lastChar=lastChar, 
-                index=index
-                )
-                
-            if character_result is not None:
-                return character_result
+        ## Character
+        character_result = self.check_if_character(
+            line=line,
+            nextLine=nextLine, 
+            lastChar=lastChar, 
+            index=index
+            )
+            
+        
+        if character_result is not None:
+            return character_result
             
         
         
@@ -380,10 +376,10 @@ class StaticFountainParser:
     
         
     def parseTitlePageLineTypeFor(self, line: Line, previousLine: Line, index: int) -> LineType:
-    
         key: str = line.getTitlePageKey()
         
-        if (len(key) > 0):
+        
+        if (len(key) > 0 and key != ""):
             value: str = line.getTitlePageValue()
             if (value == None):
                 value = ""
@@ -414,44 +410,57 @@ class StaticFountainParser:
                     return LineType.titlePageContact
                 case "draft date": 
                     return LineType.titlePageDraftDate
+                case "draft":
+                    return LineType.titlePageDraftDate
                 case _: 
                     return LineType.titlePageUnknown
 
 
                     
-        elif (previousLine is not None and len(self.title_page)> 0):
-            if previousLine.isTitlePage:
-                print ("Oopsie", line.string)
+        elif (
+            previousLine is not None 
+            and len(self.title_page)> 0
+            ):
+            if (previousLine.isTitlePage):
+                
                 key: str = ""
-                i: int = index - 1
-                 
-                #old while loop ... not sure how it is different, am afraid to delete it until I understand it
+                i: int = index -1
+                #old while loop ... not sure how it is different, am afraid to delete it until i understand it
                 '''while (i >= 0):
-                    pl: Line = self.lines[i]
+                    pl: line = self.lines[i]
                     if (len(pl.getTitlePageKey()) > 0):
                         key = pl.getTitlePageKey()
                         break
                     
                     i -= 1'''
 
-                pl: Line = previousLine
-                
-                key = pl.getTitlePageKey()
                 
                 
+                key = previousLine.getTitlePageKey()
+
+                
+                print(str(previousLine.type).split("LineType."))
                 if (len(key) > 0 ):
                     _dict = self.title_page[-1]
-                    _dict[key].append(line.string)
-                
-                
+                    if key in _dict.keys():
+                        _dict[key].append(line.string)
+                        return previousLine.type
+                        
+                elif line.string.startswith("\t") or line.string.startswith("   "):
                     return previousLine.type
-            
+                
+                    
+                    
         else:   
             return None
         
     def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
         until_parenthesis = text.split("(")[0]
-        if until_parenthesis == until_parenthesis.upper():
+        if (
+            until_parenthesis == until_parenthesis.upper()
+            and len(until_parenthesis) > 0
+            
+            ):
             return True
         else:
             return False
@@ -459,32 +468,33 @@ class StaticFountainParser:
     # ---------- Parsing sub-functions ---------- 
     
     def check_if_character(self, line, nextLine, lastChar, index,) -> LineType:
-        if (self.only_uppercase_until_parenthesis(line.string)
-                and (not line.string.strip() == "")
-                ): 
-                ## A character line ending in ^ is a dual dialogue character
-                ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
-                if list(line.noteRanges) != []:
-                    if sorted(list(line.noteRanges))[0] != 0: # get first ordered numerical value in noteRanges? #NOTE: Not 100% sure what this condition is tbh
-                        if (ord(lastChar) == 94):
-                        
-                            ## Note the previous character cue that it's followed by dual dialogue
-                            # self.makeCharacterAwareOfItsDualSiblingFrom(index)
-                            return LineType.dualDialogueCharacter
-                        else:
-                            ## It is possible that this IS NOT A CHARACTER but an all-caps action line
-                            if (index + 2 < len(self.lines)):
-                                twoLinesOver: Line = self.lines[index+2]
-                                
-                                ## Next line is empty, line after that isn't - and we're not on that particular line
-                                if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0) #or
-                                    # (nextLine.string.length == 0 and self.selectedRange.location in rangeFromLocLen(nextLine._range))
-                                    ):
-                                    return LineType.action
+        if (
+            self.only_uppercase_until_parenthesis(line.string)
+            and (not ''.join(line.string.split()) == "")
+            ):
+
+            
+            ## A character line ending in ^ is a dual dialogue character
+            ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
+            if list(line.noteRanges) != []:
+                if sorted(list(line.noteRanges))[0] != 0: # get first ordered numerical value in noteRanges? #NOTE: Not 100% sure what this condition is tbh
+                    if (ord(lastChar) == 94):
+                    
+                        ## Note the previous character cue that it's followed by dual dialogue
+                        # self.makeCharacterAwareOfItsDualSiblingFrom(index)
+                        return LineType.dualDialogueCharacter
+                    else:
+                        ## It is possible that this IS NOT A CHARACTER but an all-caps action line
+                        if (index + 2 < len(self.lines)):
+                            twoLinesOver: Line = self.lines[index+2]
+                            
+                            ## Next line is empty, line after that isn't - and we're not on that particular line
+                            if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
+                                return LineType.action
                         
                         
                        
-                return LineType.character
+            return LineType.character
         else:
             return None
         

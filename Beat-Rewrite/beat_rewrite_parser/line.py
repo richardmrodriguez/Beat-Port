@@ -558,8 +558,9 @@ class Line:
                 self.type == LineType.titlePageAuthor or
                 self.type == LineType.titlePageDraftDate or
                 self.type == LineType.titlePageContact or
-                self.type == LineType.titlePageSource or
-                self.type == LineType.titlePageUnknown)
+                self.type == LineType.titlePageSource #or
+                #self.type == LineType.titlePageUnknown
+                )
     
 
     ### Checks if the line is completely non-printing __in the eyes of parsing__.
@@ -1693,9 +1694,15 @@ class Line:
             return ""
         if ":" in self.string:
             i: int = self.string.index(":")
-            if (i == None or i == 0 or [self.string[0]] == ' '):
+            if (
+                i == None 
+                or i == 0 
+                or [self.string[0]] == ' '
+                or self.string[:i].lower().endswith(" to") # NOTE: maybe shouldn't be the responsibility of the title page key func to gatekeep transition lines
+                ):
                 return ""
-            return self.string[:i].lower()
+            else:
+                return self.string[:i].lower()
         else:
             return ""
     
@@ -1706,6 +1713,7 @@ class Line:
                 return self.string
             
             return self.string[i+1:].strip()
+        elif self.string.strip() == "The Sequel": print("Amongus")
         else:
             return ""
     
