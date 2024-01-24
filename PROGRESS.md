@@ -1,3 +1,41 @@
+# 2024 - 01 - 23
+
+## Current Functionality
+
+The parser is mostly working:
+- Title Page Elements are working completely
+- Action, Character, Parenthetical, Dialogue, Heading (sluglines) and Transition Line elements are working
+
+Some things are not working just yet:
+- Emphasis (Bold, italic, underline)
+
+## Multilanguage considerations
+Other things need to be re-worked or reconsidered going forward:
+- I made the logic for detecting a transition line depend on if the line ends in "TO:", as per the fountain.io docs. However, this is English-language centric, and so this should not be the only method for parsing transition lines.
+
+    - The original Beat code did not have this logic, and appeared to be language-agnostic. However, I also didn't understand how it worked exactly, nor could I make it work. I will have to try again to understand how to accomodate multiple languages for transition lines.
+
+## Structural considerations
+
+Currently the parser is `StaticFountainParser`, which is derived and modified from several functions in the old `ContinuousFountainParser`. I plan to use / implement the rest of the functionality of `ContinuousFountainParser` in another class, probably something like `DynamicFountainParser`.
+
+I am doing this in the hopes of separating out these responsibilities:
+
+1. Fountain parsing
+2. Getting changes from the editor to update `Line` objects in memory
+3. Writing changes back to the text file
+
+I am imagining a `DynamicFountainParser` will call functions from the `StaticFountainParser`, but be itself responsible for handling the continuous editing changes.
+
+### Separating Read and Write responsibility
+
+The `StaticFountainParser` will *only* be responsible for *reading* from the text and spitting out arrays of `Line`. 
+
+`DynamicFountainParser` will be primarily responsible for *handling continuous changes* from the editor, i.e. updating the contents of `Line` objects in memory. It will also call upon the `StaticFountainParser` to re-parse individual lines or blocks of lines in-place, rather than re-parse the entire document for every keystroke.
+
+I am hoping dividing the responsibilities into discrete modules will enable a very usable API, such that potentially anyone wanting to make a fountain text editor can pick this up and get going. Also, so that anyone wanting to read this code and contribute to this particular port may do so more easily.
+
+
 # 2024 - 01 - 17
 
 ## The Immediate Plan
