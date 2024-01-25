@@ -5,7 +5,7 @@
 ##  Copyright © 2016 Hendrik Noeller. All rights reserved.
 ##  Parts copyright © 2019-2023 Lauri-Matti Parppei. All rights reserved.
 
-##  parts copyright Richard Mamaril Rodriguez
+##  parts copyright © 2024 Richard Mamaril Rodriguez. All rights reserved.
 
 ## This parser is based upon the ContinuousFountainParser from Lauri-Matti Parppei's Beat,
 ## which itself is based upon Writer by Hendrik Noeller.
@@ -82,7 +82,6 @@ class StaticFountainParser:
     
     
     ### Parses the line type for given line. It *has* to know its line index.
-    ### TODO: This bunch of spaghetti should be refactored and split into smaller functions.
     
     def parseLineTypeFor(self, line: Line, index: int) -> LineType:
         previousLine: Line = self.lines[index - 1] if (
@@ -110,8 +109,6 @@ class StaticFountainParser:
             
             previousIsEmpty = True
         
-        
-        
         ## --------- Handle empty lines first
         empty_lines_result = self.check_if_empty_lines(
             previousLine=previousLine,
@@ -121,14 +118,12 @@ class StaticFountainParser:
             return empty_lines_result
         
         ## --------- Check FORCED elements
-
         forced_element_result = self.check_if_forced_element(line=line, previousLine=previousLine)
-        
         if forced_element_result is not None:
             return forced_element_result
 
 
-        ## Title page
+        ## --------- Title page
         if (previousLine == None or previousLine.isTitlePage):
             titlePageType: LineType = self.parseTitlePageLineTypeFor(line=line, 
                                                                      previousLine=previousLine,
@@ -138,7 +133,7 @@ class StaticFountainParser:
                 return titlePageType
             
         
-        ## Check for Transitions
+        ## --------- Transitions
         if (
             len(line.string) > 2 
             and line.string[-1] == ':' 
@@ -151,30 +146,14 @@ class StaticFountainParser:
         ## Handle items which require an empty line before them (and we're not forcing character input)
         elif (previousIsEmpty
               and len(line.string)>= 3 
-              #and line != self.characterInputForLine
               ):
             
             ## Heading
-            firstChars: str = line.string[:3].lower()
-            if (firstChars == "int" or
-                firstChars == "ext" or
-                firstChars == "est" or
-                firstChars == "i/e"):
+            heading_result = self.check_if_heading(line=line)
+            if heading_result is not None:
+                return heading_result
                 
-                ## If it's just under 4 characters, return heading
-                if (len(line.string) == 3):
-                    return LineType.heading
-                else:
-                    ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
-                    nextChar: str = line.string[3]
-                    if (nextChar == '.' 
-                        or nextChar == ' ' 
-                        or nextChar == '/'):
-
-                        return LineType.heading
-                
-            
-            
+             
         ## Character
         character_result = self.check_if_character(
             line=line,
@@ -182,8 +161,6 @@ class StaticFountainParser:
             #lastChar=lastChar, 
             index=index
             )
-            
-        
         if character_result is not None:
             return character_result
 
@@ -240,6 +217,28 @@ class StaticFountainParser:
             return False
         
     # ---------- Parsing sub-functions ---------- 
+    
+    def check_if_heading(self, line: Line):
+        ## Heading
+        firstChars: str = line.string[:3].lower()
+        if (firstChars == "int" or
+            firstChars == "ext" or
+            firstChars == "est" or
+            firstChars == "i/e"):
+            
+            ## If it's just under 4 characters, return heading
+            if (len(line.string) == 3):
+                return LineType.heading
+            else:
+                ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
+                nextChar: str = line.string[3]
+                if (nextChar == '.' 
+                    or nextChar == ' ' 
+                    or nextChar == '/'):
+
+                    return LineType.heading
+        else:
+            return None
         
     def check_if_forced_element(self, line: Line, previousLine: Line) -> LineType:
         
