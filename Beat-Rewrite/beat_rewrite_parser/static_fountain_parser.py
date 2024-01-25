@@ -98,7 +98,8 @@ class StaticFountainParser:
         
         trimmedString: str = line.string.strip() if (len(line.string) > 0) else ""
         
-        ## Check for everything that is considered as empty
+        ## Check if there is a previous line
+        ## If so, check if previous line is empty
         if (
             previousLine is None 
             or index == 0 
@@ -118,7 +119,9 @@ class StaticFountainParser:
             return empty_lines_result
         
         ## --------- Check FORCED elements
-        forced_element_result = self.check_if_forced_element(line=line, previousLine=previousLine)
+        forced_element_result = self.check_if_forced_element(
+            line=line, 
+            previousLine=previousLine)
         if forced_element_result is not None:
             return forced_element_result
 
@@ -144,14 +147,13 @@ class StaticFountainParser:
         
         
         ## Handle items which require an empty line before them (and we're not forcing character input)
-        elif (previousIsEmpty
-              and len(line.string)>= 3 
-              ):
+        
             
-            ## Heading
-            heading_result = self.check_if_heading(line=line)
-            if heading_result is not None:
-                return heading_result
+        ## Heading
+        heading_result = self.check_if_heading(line=line,
+                                                previousIsEmpty=previousIsEmpty)
+        if heading_result is not None:
+            return heading_result
                 
              
         ## Character
@@ -218,25 +220,28 @@ class StaticFountainParser:
         
     # ---------- Parsing sub-functions ---------- 
     
-    def check_if_heading(self, line: Line):
-        ## Heading
-        firstChars: str = line.string[:3].lower()
-        if (firstChars == "int" or
-            firstChars == "ext" or
-            firstChars == "est" or
-            firstChars == "i/e"):
-            
-            ## If it's just under 4 characters, return heading
-            if (len(line.string) == 3):
-                return LineType.heading
-            else:
-                ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
-                nextChar: str = line.string[3]
-                if (nextChar == '.' 
-                    or nextChar == ' ' 
-                    or nextChar == '/'):
+    def check_if_heading(self, line: Line, previousIsEmpty: bool):
 
+        if (previousIsEmpty
+              and len(line.string)>= 3 
+              ):
+            firstChars: str = line.string[:3].lower()
+            if (firstChars == "int" or
+                firstChars == "ext" or
+                firstChars == "est" or
+                firstChars == "i/e"):
+                
+                ## If it's just under 4 characters, return heading
+                if (len(line.string) == 3):
                     return LineType.heading
+                else:
+                    ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
+                    nextChar: str = line.string[3]
+                    if (nextChar == '.' 
+                        or nextChar == ' ' 
+                        or nextChar == '/'):
+
+                        return LineType.heading
         else:
             return None
         
