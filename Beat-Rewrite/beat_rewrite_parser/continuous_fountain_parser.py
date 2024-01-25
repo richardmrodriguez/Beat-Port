@@ -707,7 +707,112 @@ class ContinuousFountainParser:
 
     # BEEEG function
     
+    def parseTypeAndFormattingForLine(self, line: Line, index: int):
+        oldType: LineType = line.type
+        line.escapeRanges = set()
+        line.type = self.parseLineTypeFor(line, index=index)
+        
+        ## Make sure we didn't receive a disabled type
+        if self.disabledTypes != []:
+            if line.type in self.disabledTypes:
+                if (len(line.string) > 0): 
+                    line.type = LineType.action
+                else: line.type = LineType.empty
+        
+        
+        length: int = len(line.string)
+        charArray: str 
+        charArray = line.string
+        
+        ## Parse notes
+        # self.parseNotesFor(line, at=index, oldType=oldType)
+        
+        ## Omits have stars in them, which can be mistaken for formatting characters.
+        ## We store the omit asterisks into the "excluded" index set to avoid this mixup.
+        excluded: list = []
+        
+        ## First, we handle notes and omits, which can bleed over multiple lines.
+        ## The cryptically named omitOut and noteOut mean that the line bleeds omit/note out on the next line,
+        ## while omitIn and noteIn tell that are a part of another omitted/note block.
+        
+        previousLine: Line
+        if (index <= len(self.lines)) and (index > 0):
+            previousLine: Line = self.lines[index-1]
+        else:
+            previousLine = None
+        
+        '''line.omittedRanges = self.rangesOfOmitChars(charArray,
+                                                    length=         length,
+                                                    line=           line,
+                                                    lastLineOut=    previousLine.omitOut,
+                                                    stars=          excluded)
+        
+        line.boldRanges = self.rangesInChars(charArray,
+                                            length=                 length,
+                                            startString=            fc.BOLD_CHAR,
+                                            endString=              fc.BOLD_CHAR,
+                                            delimLength=            fc.BOLD_PATTERN_LENGTH,
+                                            excludes=               excluded,
+                                            line=                   line)
+        
+        line.italicRanges = self.rangesInChars(charArray,
+                                               length=              length,
+                                               startString=         fc.ITALIC_CHAR,
+                                               endString=           fc.ITALIC_CHAR,
+                                               delimLength=         fc.ITALIC_PATTERN_LENGTH,
+                                               excludes=            excluded,
+                                               line=                line)
+        
+        line.underlinedRanges = self.rangesInChars(charArray,
+                                                   length=          length,
+                                                   startString=     fc.UNDERLINE_CHAR,
+                                                   endString=       fc.UNDERLINE_CHAR,
+                                                   delimLength=     fc.UNDERLINE_PATTERN_LENGTH,
+                                                   excludes=        None,
+                                                   line=            line)'''
+
+        '''line.macroRanges = self.rangesInChars=charArray # syntax hurty: MACROS
+                                    ofLength=length
+                                    between=MACRO_OPEN_CHAR
+                                        and=MACRO_CLOSE_CHAR
+                                    withLength=2
+                            excludingIndices=None
+                                        line=line]'''
+        
+        ## Intersecting indices between bold & italic are boldItalic
+        '''if len(line.boldRanges) and len(line.italicRanges):
+            line.boldItalicRanges = line.italicRanges.indexesIntersectingIndexSet(line.boldRanges) # syntax hurty: INTERSECTING INDEXES
+        else:
+            line.boldItalicRanges = set()
+        
+        if (line.type == LineType.heading):
+            line.sceneNumberRange = self.sceneNumberForChars(charArray, length)
             
+            if (line.sceneNumberRange.length == 0): #syntax hurty: RANGE
+                line.sceneNumber = ""
+            else:
+                line.sceneNumber = line.string[line.sceneNumberRange]''' #syntax hurty: RANGE
+            
+        
+        
+        ## set color for outline elements
+        '''if (line.type == LineType.heading or line.type == LineType.section or line.type == LineType.synopse):
+            line.color = self.colorForHeading(line)'''
+        
+        
+        ## Markers
+        # line.marker = self.markerForLine(line)
+        
+        if (line.isTitlePage):
+            if ":" in line.string and len(line.string) > 0:
+                ## If the title doesn't begin with \t or space, format it as key name
+                if (
+                    line.string[0] != ' ' and
+                    line.string[0] != '\t' ):
+                    
+                    line.titleRange = loc_len(0, line.string.index(":") + 1) 
+                else:
+                    line.titleRange = loc_len(0, 0)
     
 
     
