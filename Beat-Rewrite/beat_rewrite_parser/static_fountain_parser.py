@@ -78,7 +78,7 @@ class StaticFountainParser:
             previousLine = beat_line
         
         return self.lines
-    
+
     
     
     ### Parses the line type for given line. It *has* to know its line index.
@@ -137,13 +137,12 @@ class StaticFountainParser:
             
         
         ## --------- Transitions
-        if (
-            len(line.string) > 2 
-            and line.string[-1] == ':' 
-            and line.string == line.string.upper() 
-            and previousIsEmpty
-            ):
-            return LineType.transitionLine
+        transition_result = self.check_if_transition(
+            line=line,
+            previousIsEmpty=previousIsEmpty
+            )
+        if transition_result is not None:
+            return transition_result
         
         
         ## Handle items which require an empty line before them (and we're not forcing character input)
@@ -178,8 +177,6 @@ class StaticFountainParser:
         ## --------- Default
         return LineType.action
     
-    
-        
     # ---------- Parsing helper funcs ---------- 
         
     def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
@@ -194,6 +191,17 @@ class StaticFountainParser:
             return False
         
     # ---------- Parsing sub-functions ---------- 
+        
+    def check_if_transition(self, line: Line, previousIsEmpty: bool):
+        if (
+            len(line.string) > 2 
+            and line.string[-1] == ':' 
+            and line.string == line.string.upper() 
+            and previousIsEmpty
+            ):
+            return LineType.transitionLine
+        else:
+            return None
         
     def check_if_dialogue_or_parenthetical(self, line: Line, previousLine: Line, index: int):
         if previousLine is not None:
