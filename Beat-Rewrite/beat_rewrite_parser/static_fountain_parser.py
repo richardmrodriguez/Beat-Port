@@ -197,6 +197,9 @@ class StaticFountainParser:
             and (index+1 < len(self.lines))
             ) else None
         
+        firstChar: str = line.string[:1]
+        lastChar: str = line.string[-1:]
+        
         previousIsEmpty: bool  = False
         
         trimmedString: str = line.string.strip() if (len(line.string) > 0) else ""
@@ -214,7 +217,7 @@ class StaticFountainParser:
         
         
         
-        ## Handle empty lines first
+        ## --------- Handle empty lines first
         empty_lines_result = self.check_if_empty_lines(
             previousLine=previousLine,
             nextLine=nextLine,
@@ -222,62 +225,14 @@ class StaticFountainParser:
         if empty_lines_result != None:
             return empty_lines_result
         
-        ## Check forced elements
-        firstChar: str = line.string[:1]
-        lastChar: str = line.string[-1:]
-        # print("firstChar", line.string[:1], " Of string: ", line.string)
+        ## --------- Check FORCED elements
 
-        ## Also, lets add the first \ as an escape character
-        if (firstChar == '\\'):
-            line.escapeRanges.append(0)
+        forced_element_result = self.check_if_forced_element(line=line, previousLine=previousLine)
         
-        ## Forced whitespace
-        containsOnlyWhitespace: bool = True if ''.join(line.string.split()) == "" else False ## Save to use again later
-        twoSpaces: bool = (
-            firstChar == ' ' 
-            and lastChar == ' ' 
-            and len(line.string) > 1) ## Contains at least two spaces
-        
-        if containsOnlyWhitespace and not twoSpaces:
-            return LineType.empty
-        
-        if trimmedString == "===":
-            return LineType.pageBreak
-        
-        elif (firstChar == '!'):
-            ## Action or shot
-            if (len(line.string) > 1):
-                secondChar: str = line.string[1]
-                if (secondChar == '!'):
-                    return LineType.shot
-            
-            return LineType.action
-        
-        elif (firstChar == '.' 
-              and previousIsEmpty
-              ):
-            # if line.string == ".HEADING": print("HEADING HERE") # DEBUG PRINT
-            ## '.' forces a heading.
-            ## Because our American friends love to shoot their guns like we Finnish people love our booze,
-            ## screenwriters might start dialogue blocks with such "words" as '.44'
-            if (len(line.string) > 1):
-                secondChar = line.string[1]
-                if (secondChar != '.'):
-                    return LineType.heading
-            else:
-                return LineType.heading
-            
-        
-        ## ... and then the rest.
-        elif (firstChar == '@'): return LineType.character
-        elif (firstChar == '>' and lastChar == '<'): return LineType.centered
-        elif (firstChar == '>'): return LineType.transitionLine
-        elif (firstChar == '~'): return LineType.lyrics
-        elif (firstChar == '='): return LineType.synopse
-        elif (firstChar == '#'): return LineType.section
-        elif (firstChar == '@' and ord(lastChar) == 94 and previousIsEmpty): return LineType.dualDialogueCharacter
-        elif (firstChar == '.' and previousIsEmpty): return LineType.heading
-        
+        if forced_element_result is not None:
+            return forced_element_result
+
+
         ## Title page
         if (previousLine == None or previousLine.isTitlePage):
             titlePageType: LineType = self.parseTitlePageLineTypeFor(line=line, 
@@ -329,7 +284,7 @@ class StaticFountainParser:
         character_result = self.check_if_character(
             line=line,
             nextLine=nextLine, 
-            lastChar=lastChar, 
+            #lastChar=lastChar, 
             index=index
             )
             
@@ -343,7 +298,12 @@ class StaticFountainParser:
         #    return LineType.character
         
         if previousLine is not None:
-            if ((previousLine.isDialogue or previousLine.isDualDialogue) and len(previousLine.string) > 0):
+            if (
+                (
+                    previousLine.isDialogue
+                    or previousLine.isDualDialogue
+                ) 
+                 and len(previousLine.string) > 0):
                 if (firstChar == '(' ): 
                     return LineType.parenthetical if (previousLine.isDialogue) else LineType.dualDialogueParenthetical
                 return LineType.dialogue if (previousLine.isDialogue)  else LineType.dualDialogue
@@ -374,6 +334,88 @@ class StaticFountainParser:
             return LineType.action
     
     
+        
+    # ---------- Parsing helper funcs ---------- 
+        
+    def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
+        until_parenthesis = text.split("(")[0]
+        if (
+            until_parenthesis == until_parenthesis.upper()
+            and len(until_parenthesis) > 0
+            
+            ):
+            return True
+        else:
+            return False
+        
+    # ---------- Parsing sub-functions ---------- 
+        
+    def check_if_forced_element(self, line: Line, previousLine: Line) -> LineType:
+        
+        firstChar: str = line.string[:1]
+        lastChar: str = line.string[-1:]
+
+        previousIsEmpty: bool = False
+
+        if previousLine is not None:
+            if previousLine.type == LineType.empty:
+                previousIsEmpty == True
+
+        ## Also, lets add the first \ as an escape character
+        if (firstChar == '\\'):
+            line.escapeRanges.append(0)
+        
+        ## --------- Forced whitespace
+        containsOnlyWhitespace: bool = True if ''.join(line.string.split()) == "" else False ## Save to use again later
+        twoSpaces: bool = (
+            firstChar == ' ' 
+            and lastChar == ' ' 
+            and len(line.string) > 1) ## Contains at least two spaces
+        
+        if containsOnlyWhitespace and not twoSpaces:
+            return LineType.empty
+        
+
+        ## --------- Page Break
+        if line.string.strip() == "===":
+            return LineType.pageBreak
+        ## --------- FORCED Action or Shot
+        if (firstChar == '!'):
+            ## Action or shot
+            if (len(line.string) > 1):
+                secondChar: str = line.string[1]
+                if (secondChar == '!'):
+                    return LineType.shot
+            
+            return LineType.action
+        ## --------- FORCED Heading / Slugline
+        if (firstChar == '.' 
+              and previousIsEmpty
+              ):
+            
+            ## '.' forces a heading.
+            ## Because our American friends love to shoot their guns like we Finnish people love our booze,
+            ## screenwriters might start dialogue blocks with such "words" as '.44'
+            if (len(line.string) > 1):
+                secondChar = line.string[1]
+                if (secondChar != '.'):
+                    return LineType.heading
+            else:
+                return LineType.heading
+            
+        
+        ## Rest of the FORCED Line Types
+        elif (firstChar == '@'): return LineType.character
+        elif (firstChar == '>' and lastChar == '<'): return LineType.centered
+        elif (firstChar == '>'): return LineType.transitionLine
+        elif (firstChar == '~'): return LineType.lyrics
+        elif (firstChar == '='): return LineType.synopse
+        elif (firstChar == '#'): return LineType.section
+        elif (firstChar == '@' and ord(lastChar) == 94 and previousIsEmpty): return LineType.dualDialogueCharacter
+        elif (firstChar == '.' and previousIsEmpty): return LineType.heading
+
+        else:
+            return None
         
     def parseTitlePageLineTypeFor(self, line: Line, previousLine: Line, index: int) -> LineType:
         key: str = line.getTitlePageKey()
@@ -453,21 +495,13 @@ class StaticFountainParser:
                     
         else:   
             return None
-        
-    def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
-        until_parenthesis = text.split("(")[0]
-        if (
-            until_parenthesis == until_parenthesis.upper()
-            and len(until_parenthesis) > 0
-            
-            ):
-            return True
-        else:
-            return False
-        
-    # ---------- Parsing sub-functions ---------- 
     
-    def check_if_character(self, line, nextLine, lastChar, index,) -> LineType:
+    def check_if_character(self, 
+                           line, 
+                           nextLine, 
+                           index,) -> LineType:
+        
+        lastChar = line.string[-1:]
         if (
             self.only_uppercase_until_parenthesis(line.string)
             and (not ''.join(line.string.split()) == "")
