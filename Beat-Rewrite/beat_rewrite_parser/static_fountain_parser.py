@@ -149,25 +149,55 @@ class StaticFountainParser:
         ## Handle items which require an empty line before them (and we're not forcing character input)
         
             
-        ## Heading
-        heading_result = self.check_if_heading(line=line,
-                                                previousIsEmpty=previousIsEmpty)
+        ## --------- Heading
+        heading_result = self.check_if_heading(
+            line=line,
+            previousIsEmpty=previousIsEmpty)
         if heading_result is not None:
             return heading_result
                 
              
-        ## Character
+        ## --------- Character
         character_result = self.check_if_character(
             line=line,
             nextLine=nextLine, 
-            #lastChar=lastChar, 
             index=index
             )
         if character_result is not None:
             return character_result
 
+        ## --------- Dialogue or Parenthetical
+        dialogue_or_parenthetical_result = self.check_if_dialogue_or_parenthetical(
+            line=line,
+            previousLine=previousLine,
+            index=index
+        )
+        if dialogue_or_parenthetical_result is not None:
+            return dialogue_or_parenthetical_result
+            
+        ## --------- Default
+        return LineType.action
+    
+    
         
+    # ---------- Parsing helper funcs ---------- 
+        
+    def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
+        until_parenthesis = text.split("(")[0]
+        if (
+            until_parenthesis == until_parenthesis.upper()
+            and len(until_parenthesis) > 0
+            
+            ):
+            return True
+        else:
+            return False
+        
+    # ---------- Parsing sub-functions ---------- 
+        
+    def check_if_dialogue_or_parenthetical(self, line: Line, previousLine: Line, index: int):
         if previousLine is not None:
+            firstChar: str = line.string[:1]
             if (
                 (
                     previousLine.isDialogue
@@ -199,26 +229,8 @@ class StaticFountainParser:
                     return LineType.parenthetical
                 else: 
                     return LineType.dialogue
-            
-            
-            return LineType.action
-    
-    
-        
-    # ---------- Parsing helper funcs ---------- 
-        
-    def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
-        until_parenthesis = text.split("(")[0]
-        if (
-            until_parenthesis == until_parenthesis.upper()
-            and len(until_parenthesis) > 0
-            
-            ):
-            return True
         else:
-            return False
-        
-    # ---------- Parsing sub-functions ---------- 
+            return None
     
     def check_if_heading(self, line: Line, previousIsEmpty: bool):
 
