@@ -214,22 +214,16 @@ class StaticFountainParser:
         
     def check_if_dialogue_or_parenthetical(self, line: Line, previousLine: Line):
         if previousLine is not None:
-            firstChar: str = line.string[:1]
             if (
-                (
-                    previousLine.isDialogue()
-                    or previousLine.isDualDialogue()
-                ) 
-                 and len(previousLine.string) > 0):
-                if (firstChar == '(' ): 
-                    return LineType.parenthetical if (previousLine.isDialogue()) else LineType.dualDialogueParenthetical
-                return LineType.dialogue if (previousLine.isDialogue())  else LineType.dualDialogue
+                previousLine.isDialogue()
+                and len(previousLine.string) > 0
+                ):
+                if (line.string[:1] == '(' ): 
+                    return LineType.parenthetical 
+                return LineType.dialogue
             
-            if previousLine.isAnyParenthetical():
-                return LineType.dialogue if previousLine.type == LineType.parenthetical else LineType.dualDialogue
-            
-            
-            
+            if previousLine.type == LineType.parenthetical:
+                return LineType.dialogue
         else:
             return None
     
@@ -446,13 +440,42 @@ class StaticFountainParser:
                 previousLine.isDualDialogue()
                 ):
                 print(previousLine.type, LineType.dualDialogue)
-                if line.string == "LADY": print("LADY HERE") ## DEBUG PRINT
                 if line.string[0] == "(":
                     return LineType.dualDialogueParenthetical
                 else:
                     return LineType.dualDialogue
-            if nextLine is not None:
-                print("THERES A DUAL DIALOGUE") # this never prints --- so the following block never executes??
+        
+        else:
+            return None
+
+    # ---------- Deprecated / Unknown ---------- 
+
+    def fix_parsing_mistakes(self, line: Line, previousLine: Line, index: int): # NOTE: Not sure if this is needed
+        ## Fix some parsing mistakes
+            if (previousLine.type == LineType.action and len(previousLine.string) > 0
+                and previousLine.string.split('(')[0] == previousLine.string.split('(')[0].upper
+                and len(line.string) > 0
+                and not previousLine.is_forced() # be wary -- this is a FUNC not a property, needs the paretheses ()
+                and self.previousLine(previousLine).type == LineType.empty):
+                ## Make all-caps lines with < 2 characters character cues
+                ## and/or make all-caps actions character cues when the text is changed to have some dialogue follow it.
+                ## (94 = ^, we'll use the unichar numerical value to avoid mistaking Turkish alphabet letter 'Ş' as '^')
+                if (previousLine.string[-1:] == 94): 
+                    previousLine.type = LineType.dualDialogueCharacter # !!!!!! THIS FUCKIN LINE
+                else:
+                    previousLine.type = LineType.character
+                
+                self.changedIndices.add(index-1)
+                
+                if (len(line) > 0 
+                    and line.string[0] == '('
+                    ):
+                    return LineType.parenthetical
+                else: 
+                    return LineType.dialogue
+    def old_dual_dialogue_block(self, line: Line, previousLine: Line, nextLine: Line):
+        # this block of code was running inside the check_if_dual_dialogue func... but it seems unnecessary now. keeping for reference
+        if nextLine is not None:
                 if (previousLine.isDialogue() or previousLine.isDualDialogue()):
                     
                     ## If preceeded by a character cue, always return dialogue
@@ -481,31 +504,3 @@ class StaticFountainParser:
                             return LineType.dialogue
                         else:
                             return LineType.dualDialogue
-        
-        
-        else:
-            return None
-        
-    def fix_parsing_mistakes(self, line: Line, previousLine: Line, index: int): # NOTE: Not sure if this is needed
-        ## Fix some parsing mistakes
-            if (previousLine.type == LineType.action and len(previousLine.string) > 0
-                and previousLine.string.split('(')[0] == previousLine.string.split('(')[0].upper
-                and len(line.string) > 0
-                and not previousLine.is_forced() # be wary -- this is a FUNC not a property, needs the paretheses ()
-                and self.previousLine(previousLine).type == LineType.empty):
-                ## Make all-caps lines with < 2 characters character cues
-                ## and/or make all-caps actions character cues when the text is changed to have some dialogue follow it.
-                ## (94 = ^, we'll use the unichar numerical value to avoid mistaking Turkish alphabet letter 'Ş' as '^')
-                if (previousLine.string[-1:] == 94): 
-                    previousLine.type = LineType.dualDialogueCharacter # !!!!!! THIS FUCKIN LINE
-                else:
-                    previousLine.type = LineType.character
-                
-                self.changedIndices.add(index-1)
-                
-                if (len(line) > 0 
-                    and line.string[0] == '('
-                    ):
-                    return LineType.parenthetical
-                else: 
-                    return LineType.dialogue
