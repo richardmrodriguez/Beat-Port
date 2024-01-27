@@ -1,3 +1,26 @@
+# 2024 - 01 - 27
+
+## Static Fountain Parser
+
+Dual Dialogue is now working, which means the parser is ~90% functional! 
+
+### What is the last "10%" ?
+1. Beat also allows for custom title page fields. This is an extension to fountain syntax, and is not accounted for yet in the `StaticFountainParser`.
+2. Transitions currently follow the [fountain.io syntax](https://fountain.io/syntax/) to the letter -- that is, any line ending in `TO:` is a transition. However -- this is entirely english-language centric.
+    - It is somewhat trivial to force a transition with `>` prefixed to a line, but I do want to explore a language-agnostic way of handling transitions. Beat already had logic for this in Objective-C, but I wasn't able to make it work. I'll have to take another look.
+3. Formatting - Bold, Italics, and underlining.
+4. Notes and Boneyard -- "Invisible" elements which aren't meant to be rendered by default.
+
+The last few elements - Formatting, Notes, and Boneyard, are a bit tricky.
+
+Formatting is something that can happen within a line as well as across multiple lines. It should be handled with ranges and indexes. In Objective-C, this was accomplished with the `NSRange` type, but in Python I've created a simple `LocationAndLength` dataclass which should serve the same purpose.
+
+Notes and Boneyards are also elements that can span across multiple lines. They can also prefix or postfix a line with their opening and closing characters.
+
+Basically, I'll have to dive back into the `ContinuousFountainParser` to see how to tackle these.
+
+
+
 # 2024 - 01 - 23
 
 ## Current Functionality
