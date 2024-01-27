@@ -112,16 +112,15 @@ class StaticFountainParser:
         
         ## --------- Handle empty lines first
         empty_lines_result = self.check_if_empty_lines(
-            previousLine=previousLine,
-            nextLine=nextLine,
             line=line)
         if empty_lines_result != None:
             return empty_lines_result
         
+
         ## --------- Check FORCED elements
         forced_element_result = self.check_if_forced_element(
             line=line, 
-            previousLine=previousLine)
+            previousIsEmpty=previousIsEmpty)
         if forced_element_result is not None:
             return forced_element_result
 
@@ -155,11 +154,21 @@ class StaticFountainParser:
         if heading_result is not None:
             return heading_result
                 
-             
+
+        ## --------- Check for Dual Dialogue
+        dual_dialogue_result = self.check_if_dual_dialogue(
+            line=line,
+            previousLine=previousLine,
+            nextLine=nextLine
+        )
+        if dual_dialogue_result is not None:
+            return dual_dialogue_result
+
         ## --------- Character
         character_result = self.check_if_character(
             line=line,
-            nextLine=nextLine, 
+            nextLine=nextLine,
+            twoLinesOver=self.lines[index+2] if (index + 2 < len(self.lines)) else None,
             index=index
             )
         if character_result is not None:
@@ -221,12 +230,12 @@ class StaticFountainParser:
             if (previousLine.type == LineType.action and len(previousLine.string) > 0
                 and previousLine.string.split('(')[0] == previousLine.string.split('(')[0].upper
                 and len(line.string) > 0
-                and not previousLine.forced
+                and not previousLine.is_forced() # be wary -- this is a FUNC not a property, needs the paretheses ()
                 and self.previousLine(previousLine).type == LineType.empty):
                 ## Make all-caps lines with < 2 characters character cues
                 ## and/or make all-caps actions character cues when the text is changed to have some dialogue follow it.
                 ## (94 = ^, we'll use the unichar numerical value to avoid mistaking Turkish alphabet letter 'Ş' as '^')
-                if (previousLine.string[-1] == 94): previousLine.type = LineType.dualDialogueCharacter
+                if (previousLine.string[-1:] == 94): previousLine.type = LineType.dualDialogueCharacter
                 else: previousLine.type = LineType.character
                 
                 self.changedIndices.add(index-1)
@@ -265,16 +274,11 @@ class StaticFountainParser:
         else:
             return None
         
-    def check_if_forced_element(self, line: Line, previousLine: Line) -> LineType:
+    def check_if_forced_element(self, line: Line, previousIsEmpty: bool) -> LineType:
         
         firstChar: str = line.string[:1]
         lastChar: str = line.string[-1:]
 
-        previousIsEmpty: bool = False
-
-        if previousLine is not None:
-            if previousLine.type == LineType.empty:
-                previousIsEmpty == True
 
         ## Also, lets add the first \ as an escape character
         if (firstChar == '\\'):
@@ -411,35 +415,29 @@ class StaticFountainParser:
         else:   
             return None
     
-    def check_if_character(self, 
-                           line, 
-                           nextLine, 
-                           index,) -> LineType:
+    def check_if_character(self, line: Line, nextLine: Line, twoLinesOver: Line, index: int,) -> LineType:
         
         lastChar = line.string[-1:]
         if (
             self.only_uppercase_until_parenthesis(line.string)
             and (not ''.join(line.string.split()) == "")
             ):
-
-            
             ## A character line ending in ^ is a dual dialogue character
             ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
-            if list(line.noteRanges) != []:
-                if sorted(list(line.noteRanges))[0] != 0: # get first ordered numerical value in noteRanges? #NOTE: Not 100% sure what this condition is tbh
-                    if (ord(lastChar) == 94):
+            #if list(line.noteRanges) != []:
+                #if sorted(list(line.noteRanges))[0] != 0: # get first ordered numerical value in noteRanges? #NOTE: Not 100% sure what this condition is tbh
+            if (ord(lastChar) == 94):
+            
+                ## Note the previous character cue that it's followed by dual dialogue
+                # self.makeCharacterAwareOfItsDualSiblingFrom(index)
+                return LineType.dualDialogueCharacter
+            else:
+                ## It is possible that this IS NOT A CHARACTER but an all-caps action line
+                if twoLinesOver is not None:
                     
-                        ## Note the previous character cue that it's followed by dual dialogue
-                        # self.makeCharacterAwareOfItsDualSiblingFrom(index)
-                        return LineType.dualDialogueCharacter
-                    else:
-                        ## It is possible that this IS NOT A CHARACTER but an all-caps action line
-                        if (index + 2 < len(self.lines)):
-                            twoLinesOver: Line = self.lines[index+2]
-                            
-                            ## Next line is empty, line after that isn't - and we're not on that particular line
-                            if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
-                                return LineType.action
+                    ## Next line is empty, line after that isn't - and we're not on that particular line
+                    if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
+                        return LineType.action
                         
                         
                        
@@ -447,24 +445,21 @@ class StaticFountainParser:
         else:
             return None
         
-    def check_if_empty_lines(self, previousLine, nextLine, line,) -> LineType:
+    def check_if_empty_lines(self, line,) -> LineType:
         if (len(line.string) == 0):
-            if previousLine is not None: # added this line, to make funny errors go away, not sure if this is best approach
-                ## If preceding line is formatted as dialogue BUT it's empty, we'll just return empty.
-                if (len(previousLine.string) == 0):
-                    return LineType.empty
+            
                 
-            # if self.check_if_dual_dialogue() is not None: # NOTE disabling this check for now, might put somewhere else
-            #     return self.check_if_dual_dialogue()
+            #if self.check_if_dual_dialogue() is not None: # NOTE disabling this check for now, might put somewhere else
+                 #return self.check_if_dual_dialogue()
             
             return LineType.empty
         else:
             return None
               
-    def check_if_dual_dialogue(self, previousLine: Line = None, nextLine: Line = None) -> LineType:
+    def check_if_dual_dialogue(self, line: Line, previousLine: Line = None, nextLine: Line = None,) -> LineType: #NOTE: dual dialogue is not currently checked
         if previousLine is not None and nextLine is not None:
+            print("THERES A DUAL DIALOGUE")
             if (previousLine.isDialogue or previousLine.isDualDialogue):
-                
                 
                 ## If preceeded by a character cue, always return dialogue
                 if (previousLine.type == LineType.character):
@@ -472,7 +467,7 @@ class StaticFountainParser:
                 elif (previousLine.type == LineType.dualDialogueCharacter):
                     return LineType.dualDialogue
             
-                # selection: int = self.delegate.selectedRange.location if (True) else 0 # syntax hurty self.delegate ???
+                
             
                 ## If it's any other dialogue line and we're editing it, return dialogue
                 if (
@@ -481,13 +476,24 @@ class StaticFountainParser:
                         or previousLine.isAnyParenthetical
                     ) 
                     and len(previousLine.string)> 0 
-                    #and (
-                    #    len(nextLine.string) == 0 
-                    #    or nextLine is None
-                    #    ) 
+                    and (
+                        len(nextLine.string) == 0 
+                        or nextLine is None
+                        ) 
                     ## and selection in rangeFromLocLen(line._range)
                     ):
 
-                    return LineType.dialogue if (previousLine.isDialogue) else LineType.dualDialogue
+                    if previousLine.isDialogue:
+                        return LineType.dialogue
+                    else:
+                        return LineType.dualDialogue
+        
+        if previousLine is not None:
+            if (previousLine.type == LineType.dualDialogueCharacter):
+                print("Previous Line type:", previousLine.type,"Current Line type:", line.type)  
+                print("Why are we still here?")   # ??? I am so fucking mad and confused
+                if previousLine.type == LineType.empty:
+                    print("Just to suffer?") # this should categorically NEVER print.....
+                return LineType.dualDialogue
         else:
             return None

@@ -4,31 +4,37 @@ from line import Line, LineType
 from helper_dataclasses import LocationAndLength as loc_len
 
 
-# TODO: make the parser actually work lmao
-# ITEMS:
-    # 1. Get Title Page Lines - def get_title_page_lines
-    # 2. Get standard fountain lines (action, character, dialogue, transition, shot) - get_fountain_lines
-    # 3. Get Beat lines (notes, colors, metadata) - def get_beat_metadata_lines
 
+# ITEMS:
+    #0. DOING: Re-organize codebase to be more modular and workable
+    #1. TODO: Finish Fountain Parsing
+    #2. TODO: parse for Beat metadata
+    #3: TODO: parse for formatting + ranges (Bold, italic, etc.)
+
+
+#1 - FOUNTAIN PARSING
+    # TODO: Boneyards don't work yet.
+    # TODO: Dual Dialogue isn't checked yet.
+    # TODO: transitionLines in the official fountain spec assume "TO:" will end a line, 
+        # but this is oviously english centric.
+        # Converse with Lauri and others about how to solve this
+#0 - CODE STRUCTURE
 # TODO: The Line class has a bunch of functions and stuff in it,
 # should probably separate into `LineData` and `LineFuncs`.
-
-# TODO: Boneyards don't work yet.
-
-# TODO: transitionLines in the official fountain spec assume "TO:" will end a line, but this is oviously english centric. Converse with Lauri and others about how to solve this
 
 test_string = '''\
 Title:
     _**AMONG US**_
     The Sequel
 Credit: Written by
-Author: John Gamer
+Author:
+    John Gamer
+    Jane Gaming
 Source: Story by InnerSloth
 Draft date: 04 - 09 - 2024
 Contact: john@gaming.sus
 
 CUT TO:
-
 
 int. HOUSE - NIGHT
 
@@ -36,11 +42,15 @@ int. HOUSE - NIGHT
 
 .HEADING
 
-..SHOT
+!!SHOT
 
 LADY
 (Screaming)
 Get out of my house, you demons!
+
+LADY 2^
+(Also Screaming)
+Yeah, get out!
 
 
 CUT TO:
@@ -75,7 +85,7 @@ def add_spacing(line_type_str: str):
 
 def debug_print_lines_and_types():
     for line in parsed_lines:
-        typestring = str(line.type)[len("LineType."):]
+        typestring = line.getTypeAsString()
         print(typestring.rjust(24) + " - " + line.string)
 
         #print(add_spacing(str(line.type)) + line.string)
@@ -85,5 +95,10 @@ def debug_print_lines_and_types():
 debug_print_lines_and_types()
 
 print("------------------------------------")
+
+
+if LineType.empty == LineType.action:
+    print("It's fucking empty")
+
 # print(parsed_lines)
 #pretty_print_screenplay(parsed_lines)
