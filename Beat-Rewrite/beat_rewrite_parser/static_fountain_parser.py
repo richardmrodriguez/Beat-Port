@@ -79,8 +79,6 @@ class StaticFountainParser:
         
         return self.lines
 
-    
-    
     ### Parses the line type for given line. It *has* to know its line index.
     
     def parseLineTypeFor(self, line: Line, index: int) -> LineType:
@@ -91,12 +89,7 @@ class StaticFountainParser:
             and (index+1 < len(self.lines))
             ) else None
         
-        firstChar: str = line.string[:1]
-        lastChar: str = line.string[-1:]
-        
         previousIsEmpty: bool  = False
-        
-        trimmedString: str = line.string.strip() if (len(line.string) > 0) else ""
         
         ## Check if there is a previous line
         ## If so, check if previous line is empty
@@ -110,6 +103,7 @@ class StaticFountainParser:
             
             previousIsEmpty = True
         
+
         ## --------- Handle empty lines first
         empty_lines_result = self.check_if_empty_lines(
             line=line)
@@ -144,9 +138,7 @@ class StaticFountainParser:
             return transition_result
         
         
-        ## Handle items which require an empty line before them
-        # (and we're not forcing character input)
-        
+        ## Handle items which require an empty line before them.
             
         ## --------- Heading
         heading_result = self.check_if_heading(
