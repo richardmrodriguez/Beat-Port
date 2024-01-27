@@ -126,7 +126,7 @@ class StaticFountainParser:
 
 
         ## --------- Title page
-        if (previousLine == None or previousLine.isTitlePage):
+        if (previousLine == None or previousLine.isTitlePage()):
             titlePageType: LineType = self.parseTitlePageLineTypeFor(line=line, 
                                                                      previousLine=previousLine,
                                                                      index=index)
@@ -144,7 +144,8 @@ class StaticFountainParser:
             return transition_result
         
         
-        ## Handle items which require an empty line before them (and we're not forcing character input)
+        ## Handle items which require an empty line before them
+        # (and we're not forcing character input)
         
             
         ## --------- Heading
@@ -178,7 +179,6 @@ class StaticFountainParser:
         dialogue_or_parenthetical_result = self.check_if_dialogue_or_parenthetical(
             line=line,
             previousLine=previousLine,
-            index=index
         )
         if dialogue_or_parenthetical_result is not None:
             return dialogue_or_parenthetical_result
@@ -212,40 +212,24 @@ class StaticFountainParser:
         else:
             return None
         
-    def check_if_dialogue_or_parenthetical(self, line: Line, previousLine: Line, index: int):
+    def check_if_dialogue_or_parenthetical(self, line: Line, previousLine: Line):
         if previousLine is not None:
             firstChar: str = line.string[:1]
             if (
                 (
-                    previousLine.isDialogue
-                    or previousLine.isDualDialogue
+                    previousLine.isDialogue()
+                    or previousLine.isDualDialogue()
                 ) 
                  and len(previousLine.string) > 0):
                 if (firstChar == '(' ): 
-                    return LineType.parenthetical if (previousLine.isDialogue) else LineType.dualDialogueParenthetical
-                return LineType.dialogue if (previousLine.isDialogue)  else LineType.dualDialogue
+                    return LineType.parenthetical if (previousLine.isDialogue()) else LineType.dualDialogueParenthetical
+                return LineType.dialogue if (previousLine.isDialogue())  else LineType.dualDialogue
+            
+            if previousLine.isAnyParenthetical():
+                return LineType.dialogue if previousLine.type == LineType.parenthetical else LineType.dualDialogue
             
             
-            ## Fix some parsing mistakes
-            if (previousLine.type == LineType.action and len(previousLine.string) > 0
-                and previousLine.string.split('(')[0] == previousLine.string.split('(')[0].upper
-                and len(line.string) > 0
-                and not previousLine.is_forced() # be wary -- this is a FUNC not a property, needs the paretheses ()
-                and self.previousLine(previousLine).type == LineType.empty):
-                ## Make all-caps lines with < 2 characters character cues
-                ## and/or make all-caps actions character cues when the text is changed to have some dialogue follow it.
-                ## (94 = ^, we'll use the unichar numerical value to avoid mistaking Turkish alphabet letter 'Ş' as '^')
-                if (previousLine.string[-1:] == 94): previousLine.type = LineType.dualDialogueCharacter
-                else: previousLine.type = LineType.character
-                
-                self.changedIndices.add(index-1)
-                
-                if (len(line) > 0 
-                    and line.string[0] == '('
-                    ):
-                    return LineType.parenthetical
-                else: 
-                    return LineType.dialogue
+            
         else:
             return None
     
@@ -382,7 +366,7 @@ class StaticFountainParser:
             previousLine is not None 
             and len(self.title_page)> 0
             ):
-            if (previousLine.isTitlePage):
+            if (previousLine.isTitlePage()):
                 
                 key: str = ""
                 i: int = index -1
@@ -456,44 +440,72 @@ class StaticFountainParser:
         else:
             return None
               
-    def check_if_dual_dialogue(self, line: Line, previousLine: Line = None, nextLine: Line = None,) -> LineType: #NOTE: dual dialogue is not currently checked
-        if previousLine is not None and nextLine is not None:
-            print("THERES A DUAL DIALOGUE")
-            if (previousLine.isDialogue or previousLine.isDualDialogue):
-                
-                ## If preceeded by a character cue, always return dialogue
-                if (previousLine.type == LineType.character):
-                    return LineType.dialogue
-                elif (previousLine.type == LineType.dualDialogueCharacter):
-                    return LineType.dualDialogue
-            
-                
-            
-                ## If it's any other dialogue line and we're editing it, return dialogue
-                if (
-                    (
-                        previousLine.isAnyDialogue 
-                        or previousLine.isAnyParenthetical
-                    ) 
-                    and len(previousLine.string)> 0 
-                    and (
-                        len(nextLine.string) == 0 
-                        or nextLine is None
-                        ) 
-                    ## and selection in rangeFromLocLen(line._range)
-                    ):
-
-                    if previousLine.isDialogue:
-                        return LineType.dialogue
-                    else:
-                        return LineType.dualDialogue
-        
+    def check_if_dual_dialogue(self, line: Line, previousLine: Line = None, nextLine: Line = None,) -> LineType: 
         if previousLine is not None:
-            if (previousLine.type == LineType.dualDialogueCharacter):
-                print("Previous Line type:", previousLine.type,"Current Line type:", line.type)  
-                print("Why are we still here?")   # ??? I am so fucking mad and confused
-                if previousLine.type == LineType.empty:
-                    print("Just to suffer?") # this should categorically NEVER print.....
-                return LineType.dualDialogue
+            if (
+                previousLine.isDualDialogue()
+                ):
+                print(previousLine.type, LineType.dualDialogue)
+                if line.string == "LADY": print("LADY HERE") ## DEBUG PRINT
+                if line.string[0] == "(":
+                    return LineType.dualDialogueParenthetical
+                else:
+                    return LineType.dualDialogue
+            if nextLine is not None:
+                print("THERES A DUAL DIALOGUE") # this never prints --- so the following block never executes??
+                if (previousLine.isDialogue() or previousLine.isDualDialogue()):
+                    
+                    ## If preceeded by a character cue, always return dialogue
+                    if (previousLine.type == LineType.character):
+                        return LineType.dialogue
+                    elif (previousLine.type == LineType.dualDialogueCharacter):
+                        return LineType.dualDialogue
+                
+                    
+                
+                    ## If it's any other dialogue line and we're editing it, return dialogue
+                    if (
+                        (
+                            previousLine.isAnyDialogue()
+                            or previousLine.isAnyParenthetical()
+                        ) 
+                        and len(previousLine.string)> 0 
+                        and (
+                            len(nextLine.string) == 0 
+                            or nextLine is None
+                            ) 
+                        ## and selection in rangeFromLocLen(line._range)
+                        ):
+
+                        if previousLine.isDialogue():
+                            return LineType.dialogue
+                        else:
+                            return LineType.dualDialogue
+        
+        
         else:
             return None
+        
+    def fix_parsing_mistakes(self, line: Line, previousLine: Line, index: int): # NOTE: Not sure if this is needed
+        ## Fix some parsing mistakes
+            if (previousLine.type == LineType.action and len(previousLine.string) > 0
+                and previousLine.string.split('(')[0] == previousLine.string.split('(')[0].upper
+                and len(line.string) > 0
+                and not previousLine.is_forced() # be wary -- this is a FUNC not a property, needs the paretheses ()
+                and self.previousLine(previousLine).type == LineType.empty):
+                ## Make all-caps lines with < 2 characters character cues
+                ## and/or make all-caps actions character cues when the text is changed to have some dialogue follow it.
+                ## (94 = ^, we'll use the unichar numerical value to avoid mistaking Turkish alphabet letter 'Ş' as '^')
+                if (previousLine.string[-1:] == 94): 
+                    previousLine.type = LineType.dualDialogueCharacter # !!!!!! THIS FUCKIN LINE
+                else:
+                    previousLine.type = LineType.character
+                
+                self.changedIndices.add(index-1)
+                
+                if (len(line) > 0 
+                    and line.string[0] == '('
+                    ):
+                    return LineType.parenthetical
+                else: 
+                    return LineType.dialogue
