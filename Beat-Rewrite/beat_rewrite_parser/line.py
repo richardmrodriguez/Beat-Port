@@ -26,35 +26,35 @@ from parser_data_classes.formatting_characters import FormattingCharacters
 ### `BeatFormatting` class also introduces supplementary types for internal use.
 
 @dataclass
-class LineType(Enum):
-    (
-        empty,
-        section,
-        synopse,
-        titlePageTitle,
-        titlePageAuthor,
-        titlePageCredit,
-        titlePageSource,
-        titlePageContact,
-        titlePageDraftDate,
-        titlePageUnknown,
-        heading,
-        action,
-        character,
-        parenthetical,
-        dialogue,
-        dualDialogueCharacter,
-        dualDialogueParenthetical,
-        dualDialogue,
-        transitionLine,
-        lyrics,
-        pageBreak,
-        centered,
-        shot,
-        more,               ### fake element for exporting
-        dualDialogueMore,   ### fake element for exporting
-        typeCount           ### This is the the max number of line types, used in `for` loops and enumerations, can be ignored
-        ) = range(0, 26) 
+class LineType:
+    
+    empty =                         0
+    section =                       1
+    synopse =                       2
+    titlePageTitle =                3
+    titlePageAuthor =               4
+    titlePageCredit =               5
+    titlePageSource =               6
+    titlePageContact =              7
+    titlePageDraftDate =            8
+    titlePageUnknown =              9
+    heading =                       10
+    action =                        11
+    character =                     12
+    parenthetical =                 13
+    dialogue =                      14
+    dualDialogueCharacter =         15
+    dualDialogueParenthetical =     16
+    dualDialogue =                  17
+    transitionLine =                18
+    lyrics =                        19
+    pageBreak =                     20
+    centered =                      21
+    shot =                          22
+    more =                          23   ### fake element for exporting
+    dualDialogueMore =              24   ### fake element for exporting
+    typeCount =                     25   ### This is the the max number of line types, used in `for` loops and enumerations, can be ignored
+        
     
 # TODO: determine if we can or should separate the Line class into two: LineBehavior and LineData class
 
@@ -68,11 +68,9 @@ class Line:
     originalString: str
     ### Position (starting index) )in document
     position: int
-    ### Getter for string length
-    length: int
 
     ### If the line is an outline element (section/heading) this value contains the section depth
-    sectionDepth: int
+    section_depth: int
     ### If the line is an outline element, this value contains the scene number, but only after the outline structure has been updated
     sceneNumber: str
     ### Color for outline element (`nil` or empty if no color is set)
@@ -145,6 +143,38 @@ class Line:
         self.originalString = string
         
         # return self
+    
+
+    def numberOfPrecedingFormattingCharacters(self) -> int:
+    
+        if (len(self.string) < 1): return 0
+        
+        type: LineType  = self.type
+        c: str = self.string[0]
+        
+        ## Check if this is a shot
+        if (self.string.length > 1 and c == '!'):
+            c2: str = self.string[1]
+            if (type == LineType.shot and c2 == '!'):
+                return 2
+        
+        
+        ## Other types
+        if ((self.type == LineType.character and c == '@') or
+            (self.type == LineType.heading and c == '.') or
+            (self.type == LineType.action and c == '!') or
+            (self.type == LineType.lyrics and c == '~') or
+            (self.type == LineType.synopse and c == '=') or
+            (self.type == LineType.centered and c == '>') or
+            (self.type == LineType.transitionLine and c == '>')):
+            return 1
+        
+        ## Section
+        elif (self.type == LineType.section):
+            return self.get_section_depth
+        
+        
+        return 0
     
 
     '''### Use this ONLY for creating temporary lines while paginating.
@@ -568,11 +598,11 @@ class Line:
         return (self.omitted 
                 or self.type == LineType.section 
                 or self.type == LineType.synopse 
-                or self.isTitlePage)
+                or self.isTitlePage) # NOTE: ? why would title page be invisible?
     
 
     ### Returns TRUE if the line type is forced
-    def forced(self) -> bool:
+    def is_forced(self) -> bool:
         return (self.numberOfPrecedingFormattingCharacters > 0)
     
 
@@ -800,7 +830,7 @@ class Line:
     
     #pragma mark - Section depth --- BACKBURNER
 
-    def sectionDepth(self) -> int:
+    def get_section_depth(self) -> int:
         depth: int = 0
 
         for c in range(0, len(self.string)):
@@ -808,7 +838,7 @@ class Line:
                 depth += 1
             else:
                 break
-        
+        self.section_depth = depth
         return depth
 
     #pragma mark - Story beats --- BACKBURNER
@@ -1451,36 +1481,7 @@ class Line:
         return contentRanges
     }
 
-    def NSUInteger)numberOfPrecedingFormattingCharacters
-    {
-        if (self.string.length < 1) return 0
-        
-        LineType type = self.type
-        unichar c = [self.string characterAtIndex:0]
-        
-        ## Check if this is a shot
-        if (self.string.length > 1 and c == '!') {
-            unichar c2 = [self.string characterAtIndex:1]
-            if (type == shot and c2 == '!') return 2
-        }
-        
-        ## Other types
-        if ((self.type == character and c == '@') ||
-            (self.type == heading and c == '.') ||
-            (self.type == action and c == '!') ||
-            (self.type == lyrics and c == '~') ||
-            (self.type == synopse and c == '=') ||
-            (self.type == centered and c == '>') ||
-            (self.type == transitionLine and c == '>')) {
-            return 1
-        }
-        ## Section
-        elif (self.type == section) {
-            return self.sectionDepth
-        }
-        
-        return 0
-    }
+    
 
     ### Maps formatting characters into an index set, INCLUDING notes, scene numbers etc. to convert it to another style of formatting
     def NSIndexSet*)formattingRanges {
