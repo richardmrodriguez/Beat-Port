@@ -25,6 +25,7 @@ The `StaticFountainParser` can parse the following line types:
 ✅ titlePageContact              
 ✅ titlePageDraftDate            
 ❌ titlePageUnknown -- for custom Title Page fields
+
 ✅ heading                        
 ✅ action                         
 ✅ character                      
