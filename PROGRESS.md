@@ -6,8 +6,8 @@ Dual Dialogue is now working, which means the parser is ~90% functional!
 
 ### What is the last "10%" ?
 1. Beat also allows for custom title page fields. This is an extension to fountain syntax, and is not accounted for yet in the `StaticFountainParser`.
-2. Transitions currently follow the [fountain.io syntax](https://fountain.io/syntax/) to the letter -- that is, any line ending in `TO:` is a transition. However -- this is entirely english-language centric.
-    - It is somewhat trivial to force a transition with `>` prefixed to a line, but I do want to explore a language-agnostic way of handling transitions. Beat already had logic for this in Objective-C, but I wasn't able to make it work. I'll have to take another look.
+~~2. Transitions currently follow the [fountain.io syntax](https://fountain.io/syntax/) to the letter -- that is, any line ending in `TO:` is a transition. However -- this is entirely english-language centric.~~
+    UPDATE 2024 - 01 - 28: Transitions actually work they way they did in Beat, where anything ending with a colon `:` counts as a transition. This does not appear to interfere with title page parsing, which is a problem I was having at one point.
 3. Formatting - Bold, Italics, and underlining.
 4. Notes and Boneyard -- "Invisible" elements which aren't meant to be rendered by default.
 
