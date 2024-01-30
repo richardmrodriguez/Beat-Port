@@ -20,7 +20,7 @@
 import uuid
 
 from helper_dataclasses import LocationAndLength as loc_len
-from helper_funcs import *
+import helper_funcs as hf
 
 from line import Line, LineType
 from parser_data_classes.formatting_characters import FormattingCharacters as fc
@@ -37,60 +37,47 @@ class StaticFountainParser:
         """
         This function takes a raw string `text` which represents an entire document or file.
         
-        This splits the string by newlines, and then parses and categorizes each line according to Fountain syntax rules.
-
-        Finally, this returns a list of `Line` objects. Each `Line` contains the `string`, the `LineType` for the line, and other metadata as properties.
+        This returns a list of fountain-parsed `Line` objects. Each `Line` contains the `string`, the `LineType` for the line, and other metadata as properties.
         """
-        
-        lines = []
-        
-        if (text == None): text = ""
-        text = text.replace("\r\n", "\n") ## Replace MS Word/Windows line breaks with macOS ones # NOTE: Will this break text files on windows if we leave this?
-        
-        ## Split the text by line breaks
-        raw_lines: list = text.splitlines()
-        
-        position: int = 0; ## To track at which position every line begins
-        
-        previousLine: Line = None
-        
-        for rawLine in raw_lines:
-            index: int = len(lines)
+
+        return self._get_parsed_lines_from_line_array(
+            self._get_unparsed_line_array_from_raw_string(text)
+            )
+
+    # ----- Private Functions ----- 
+    @classmethod
+    def _get_parsed_lines_from_line_array(cls, lines: list[Line]):
+        # the actual parsing
+        index: int = 0
+        for l in lines:
             print("Index", index)
-            beat_line: Line = Line(string=rawLine, position=position)
-            lines.append(beat_line)
-            
-            beat_line.type = self._parse_line_type_for(beat_line, index=index, lines=lines)
-            
-            ## Quick fix for mistaking an ALL CAPS action for a character cue
-            #NOTE: This logic is changed from the original logic. Also, maybe this should be moved into the _check_if_character func
-            
-            if previousLine is not None:
-                if beat_line.type == LineType.character and previousLine.type != LineType.empty:
-                    beat_line.type = LineType.action
-            
-            position += (len(rawLine) + 1); ## +1 for newline character # NOTE: since this code adds 1 for newlines, we should NOT use 'keepends' when using str.splitlines()
-            previousLine = beat_line
-        
+            l.type = cls._parse_line_type_for(lines, index)
+            index += 1
         return lines
 
-    def get_parsed_lines_from_line_array(self, lines: list[Line]=[]):
-        pass
     @staticmethod
-    def get_unparsed_line_array_from_raw_string(text: str) -> list[Line]:
+    def _get_unparsed_line_array_from_raw_string(text: str) -> list[Line]:
+
+        unparsed_lines: list = []
         if (text == None): text = ""
         text = text.replace("\r\n", "\n") ## Replace MS Word/Windows line breaks with unix newlines
         
-        ## Split the text by line breaks
-        unparsed_lines: list[Line] = [Line(string=n) for n in text.splitlines]
+        raw_lines: list = text.splitlines()
+        position: int = 0; ## To track at which position every line begins
+        
+        for r in raw_lines:
+            unparsed_lines.append(Line(r, position, type=LineType.unparsed))
+            position += (len(r) + 1) # +1 is to account for newline character
+
         return unparsed_lines
 
 
-    # ----- Private Functions ----- 
 
     ### Parses the line type for given line. It *has* to know its line index.
-    def _parse_line_type_for(self, line: Line, index: int, lines: list[Line] = []) -> LineType:
-        
+    @classmethod
+    def _parse_line_type_for(cls, lines: list[Line], index: int) -> LineType:
+
+        line = lines[index]
 
         nextLine: Line = None
         previousLine: Line = None
@@ -100,7 +87,7 @@ class StaticFountainParser:
                 previousLine: Line = lines[index - 1]
             if (
                 (line != lines[-1])
-                and (index+1 < len(lines))
+                and (index+1 <= len(lines))
                 ):
                 nextLine: Line = lines[index+1]
         
@@ -108,21 +95,19 @@ class StaticFountainParser:
         
         ## Check if there is a previous line
         ## If so, check if previous line is empty
-        
         if previousLine is not None:
             if previousLine.type != LineType.empty:
                 previousIsEmpty = False
 
+
         ## --------- Handle empty lines first
-        empty_lines_result: LineType  = self._check_if_empty_lines(
-            line=line
-            )
+        empty_lines_result: LineType  = cls._check_if_empty_lines(line)
         if empty_lines_result is not None:
             return empty_lines_result
         
 
         ## --------- Check FORCED elements
-        forced_element_result: LineType  = self._check_if_forced_element(
+        forced_element_result: LineType  = cls._check_if_forced_element(
             line=line, 
             previousIsEmpty=previousIsEmpty
             )
@@ -131,7 +116,7 @@ class StaticFountainParser:
 
 
         ## --------- Title page
-        title_page_result: LineType = self._check_if_title_page_element(
+        title_page_result: LineType = cls._check_if_title_page_element(
             line=line, 
             previousLine=previousLine,
             index=index
@@ -141,7 +126,7 @@ class StaticFountainParser:
             
         
         ## --------- Transitions
-        transition_result: LineType  = self._check_if_transition(
+        transition_result: LineType  = cls._check_if_transition(
             line=line,
             previousIsEmpty=previousIsEmpty
             )
@@ -152,7 +137,7 @@ class StaticFountainParser:
         # Handle items which require an empty line before them.
             
         ## --------- Heading
-        heading_result: LineType  = self._check_if_heading(
+        heading_result: LineType  = cls._check_if_heading(
             line=line,
             previousIsEmpty=previousIsEmpty
             )
@@ -161,7 +146,7 @@ class StaticFountainParser:
                 
 
         ## --------- Check for Dual Dialogue
-        dual_dialogue_result: LineType  = self._check_if_dual_dialogue(
+        dual_dialogue_result: LineType  = cls._check_if_dual_dialogue(
             line=line,
             previousLine=previousLine,
             nextLine=nextLine
@@ -170,17 +155,18 @@ class StaticFountainParser:
             return dual_dialogue_result
 
         ## --------- Character
-        character_result: LineType  = self._check_if_character(
+        character_result: LineType  = cls._check_if_character(
             line=line,
             nextLine=nextLine,
             twoLinesOver=lines[index+2] if (index + 2 < len(lines)) else None,
-            index=index
+            index=index,
+            previousLine=previousLine
             )
         if character_result is not None:
             return character_result
 
         ## --------- Dialogue or Parenthetical
-        dialogue_or_parenthetical_result: LineType  = self._check_if_dialogue_or_parenthetical(
+        dialogue_or_parenthetical_result: LineType  = cls._check_if_dialogue_or_parenthetical(
             line=line,
             previousLine=previousLine,
         )
@@ -369,12 +355,12 @@ class StaticFountainParser:
                 return previousLine.type
 
     @staticmethod
-    def _check_if_character(line: Line, nextLine: Line, twoLinesOver: Line, index: int,) -> LineType:
+    def _check_if_character(line: Line, nextLine: Line, twoLinesOver: Line, index: int, previousLine: Line) -> LineType:
         
         lastChar = line.string[-1:]
         if (
-            only_uppercase_until_parenthesis(line.string)
-            and (not ''.join(line.string.split()) == "")
+            hf.only_uppercase_until_parenthesis(line.string)
+            and line.string != ""
             ):
             ## A character line ending in ^ is a dual dialogue character
             ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
@@ -392,18 +378,19 @@ class StaticFountainParser:
                 ## Next line is empty, line after that isn't - and we're not on that particular line
                 if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
                     return LineType.action
-            
-                        
-                        
-                       
+
+            if previousLine is not None:
+                if line.type == LineType.character and previousLine.type != LineType.empty:
+                    return LineType.action
             return LineType.character
+        
         else:
             return None
     
     @staticmethod    
-    def _check_if_empty_lines(line) -> LineType:
+    def _check_if_empty_lines(line: Line) -> LineType:
+        
         if (len(line.string) == 0):
-            
             return LineType.empty
         else:
             return None
