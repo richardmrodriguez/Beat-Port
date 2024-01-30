@@ -5,7 +5,7 @@
 ##  Copyright © 2016 Hendrik Noeller. All rights reserved.
 ##  Parts copyright © 2019-2023 Lauri-Matti Parppei. All rights reserved.
 
-##  parts copyright © 2024 Richard Mamaril Rodriguez. All rights reserved.
+##  Parts copyright © 2024 Richard Mamaril Rodriguez. All rights reserved.
 
 ## This parser is based upon the ContinuousFountainParser from Lauri-Matti Parppei's Beat,
 ## which itself is based upon Writer by Hendrik Noeller.
@@ -28,15 +28,21 @@ from parser_data_classes.formatting_characters import FormattingCharacters as fc
 from document_model import DocumentModel as Document
 
 class StaticFountainParser:
-    title_page: list = []
     lines: list[Line] = []
-
-    title_page_done_populating: bool = False # TODO use this to skip title page parsing when we are done with title page elements
-
+    pure_fountain_parsing: bool = False # TODO use to enable or disable Beat-specific QoL parsing methods (?)
     disabledTypes: list[any] = []
 
+    # ----- Public Functions ----- 
     def get_parsed_lines_from_raw_string(self, text: str) -> list[Line]:
-        self.lines = []
+        """
+        This function takes a raw string `text` which represents an entire document or file.
+        
+        This splits the string by newlines, and then parses and categorizes each line according to Fountain syntax rules.
+
+        Finally, this returns a list of `Line` objects. Each `Line` contains the `string`, the `LineType` for the line, and other metadata as properties.
+        """
+        
+        lines = []
         
         if (text == None): text = ""
         text = text.replace("\r\n", "\n") ## Replace MS Word/Windows line breaks with macOS ones # NOTE: Will this break text files on windows if we leave this?
@@ -49,88 +55,93 @@ class StaticFountainParser:
         previousLine: Line = None
         
         for rawLine in raw_lines:
-            index: int = len(self.lines)
+            index: int = len(lines)
             print("Index", index)
             beat_line: Line = Line(string=rawLine, position=position)
-            self.lines.append(beat_line)
+            lines.append(beat_line)
             
-            beat_line.type = self.parseLineTypeFor(beat_line, index=index)
+            beat_line.type = self._parse_line_type_for(beat_line, index=index, lines=lines)
             
-            ## Quick fix for mistaking an ALL CAPS action for a character cue # NOTE: Don't know what's wrong with this block rn
+            ## Quick fix for mistaking an ALL CAPS action for a character cue
+            #NOTE: This logic is changed from the original logic. Also, maybe this should be moved into the _check_if_character func
             
-            '''if previousLine is not None:
-                if (previousLine.type == LineType.character 
-                    and
-                    (
-                        (len(beat_line.string) < 1) 
-                        or (beat_line.type == LineType.empty)
-                    )
-                    ):
-                    
-                    
-                    previousLine.type = self.parseLineTypeFor(beat_line, index=(index - 1))
-                    
-                    if (previousLine.type == LineType.character): 
-                        previousLine.type = LineType.action'''
+            if previousLine is not None:
+                if beat_line.type == LineType.character and previousLine.type != LineType.empty:
+                    beat_line.type = LineType.action
             
-                    
             position += (len(rawLine) + 1); ## +1 for newline character # NOTE: since this code adds 1 for newlines, we should NOT use 'keepends' when using str.splitlines()
             previousLine = beat_line
         
-        return self.lines
+        return lines
+
+    def get_parsed_lines_from_line_array(self, lines: list[Line]=[]):
+        pass
+    @staticmethod
+    def get_unparsed_line_array_from_raw_string(text: str) -> list[Line]:
+        if (text == None): text = ""
+        text = text.replace("\r\n", "\n") ## Replace MS Word/Windows line breaks with unix newlines
+        
+        ## Split the text by line breaks
+        unparsed_lines: list[Line] = [Line(string=n) for n in text.splitlines]
+        return unparsed_lines
+
+
+    # ----- Private Functions ----- 
 
     ### Parses the line type for given line. It *has* to know its line index.
-    
-    def parseLineTypeFor(self, line: Line, index: int) -> LineType:
-        previousLine: Line = self.lines[index - 1] if (
-            index > 0) else None
-        nextLine: Line = self.lines[index+1] if (
-            (line != self.lines[-1]) 
-            and (index+1 < len(self.lines))
-            ) else None
+    def _parse_line_type_for(self, line: Line, index: int, lines: list[Line] = []) -> LineType:
         
-        previousIsEmpty: bool  = False
+
+        nextLine: Line = None
+        previousLine: Line = None
+        
+        if len(lines) > 0:
+            if index > 0:
+                previousLine: Line = lines[index - 1]
+            if (
+                (line != lines[-1])
+                and (index+1 < len(lines))
+                ):
+                nextLine: Line = lines[index+1]
+        
+        previousIsEmpty: bool  = True
         
         ## Check if there is a previous line
         ## If so, check if previous line is empty
-        if (
-            previousLine is None 
-            or index == 0 
-            ):
-            previousIsEmpty = True
-        elif (previousLine is not None 
-              and previousLine.type == LineType.empty):
-            
-            previousIsEmpty = True
         
+        if previousLine is not None:
+            if previousLine.type != LineType.empty:
+                previousIsEmpty = False
 
         ## --------- Handle empty lines first
-        empty_lines_result = self.check_if_empty_lines(
-            line=line)
-        if empty_lines_result != None:
+        empty_lines_result: LineType  = self._check_if_empty_lines(
+            line=line
+            )
+        if empty_lines_result is not None:
             return empty_lines_result
         
 
         ## --------- Check FORCED elements
-        forced_element_result = self.check_if_forced_element(
+        forced_element_result: LineType  = self._check_if_forced_element(
             line=line, 
-            previousIsEmpty=previousIsEmpty)
+            previousIsEmpty=previousIsEmpty
+            )
         if forced_element_result is not None:
             return forced_element_result
 
 
         ## --------- Title page
-        if (previousLine == None or previousLine.isTitlePage()):
-            titlePageType: LineType = self.parseTitlePageLineTypeFor(line=line, 
-                                                                     previousLine=previousLine,
-                                                                     index=index)
-            if (titlePageType is not None):
-                
-                return titlePageType
+        title_page_result: LineType = self._check_if_title_page_element(
+            line=line, 
+            previousLine=previousLine,
+            index=index
+            )
+        if (title_page_result is not None):
+            return title_page_result
             
         
         ## --------- Transitions
-        transition_result = self.check_if_transition(
+        transition_result: LineType  = self._check_if_transition(
             line=line,
             previousIsEmpty=previousIsEmpty
             )
@@ -138,37 +149,38 @@ class StaticFountainParser:
             return transition_result
         
         
-        ## Handle items which require an empty line before them.
+        # Handle items which require an empty line before them.
             
         ## --------- Heading
-        heading_result = self.check_if_heading(
+        heading_result: LineType  = self._check_if_heading(
             line=line,
-            previousIsEmpty=previousIsEmpty)
+            previousIsEmpty=previousIsEmpty
+            )
         if heading_result is not None:
             return heading_result
                 
 
         ## --------- Check for Dual Dialogue
-        dual_dialogue_result = self.check_if_dual_dialogue(
+        dual_dialogue_result: LineType  = self._check_if_dual_dialogue(
             line=line,
             previousLine=previousLine,
             nextLine=nextLine
-        )
+            )
         if dual_dialogue_result is not None:
             return dual_dialogue_result
 
         ## --------- Character
-        character_result = self.check_if_character(
+        character_result: LineType  = self._check_if_character(
             line=line,
             nextLine=nextLine,
-            twoLinesOver=self.lines[index+2] if (index + 2 < len(self.lines)) else None,
+            twoLinesOver=lines[index+2] if (index + 2 < len(lines)) else None,
             index=index
             )
         if character_result is not None:
             return character_result
 
         ## --------- Dialogue or Parenthetical
-        dialogue_or_parenthetical_result = self.check_if_dialogue_or_parenthetical(
+        dialogue_or_parenthetical_result: LineType  = self._check_if_dialogue_or_parenthetical(
             line=line,
             previousLine=previousLine,
         )
@@ -179,8 +191,8 @@ class StaticFountainParser:
         return LineType.action
     
     # ---------- Parsing helper funcs ---------- 
-        
-    def only_uppercase_until_parenthesis(self, text: str): # Might want to move this func to helper_funcs to be cleaner
+    @staticmethod    
+    def _only_uppercase_until_parenthesis(text: str): # Might want to move this func to helper_funcs to be cleaner
         until_parenthesis = text.split("(")[0]
         if (
             until_parenthesis == until_parenthesis.upper()
@@ -192,8 +204,8 @@ class StaticFountainParser:
             return False
         
     # ---------- Parsing sub-functions ---------- 
-        
-    def check_if_transition(self, line: Line, previousIsEmpty: bool):
+    @staticmethod
+    def _check_if_transition(line: Line, previousIsEmpty: bool):
         if (
             len(line.string) > 2 
             and line.string[-1] == ':' 
@@ -203,8 +215,9 @@ class StaticFountainParser:
             return LineType.transitionLine
         else:
             return None
-        
-    def check_if_dialogue_or_parenthetical(self, line: Line, previousLine: Line):
+    
+    @staticmethod    
+    def _check_if_dialogue_or_parenthetical(line: Line, previousLine: Line):
         if previousLine is not None:
             if (
                 previousLine.isDialogue()
@@ -219,7 +232,8 @@ class StaticFountainParser:
         else:
             return None
     
-    def check_if_heading(self, line: Line, previousIsEmpty: bool):
+    @staticmethod
+    def _check_if_heading(line: Line, previousIsEmpty: bool):
 
         if (previousIsEmpty
               and len(line.string)>= 3 
@@ -243,8 +257,9 @@ class StaticFountainParser:
                         return LineType.heading
         else:
             return None
-        
-    def check_if_forced_element(self, line: Line, previousIsEmpty: bool) -> LineType:
+    
+    @staticmethod    
+    def _check_if_forced_element(line: Line, previousIsEmpty: bool) -> LineType:
         
         firstChar: str = line.string[:1]
         lastChar: str = line.string[-1:]
@@ -305,22 +320,19 @@ class StaticFountainParser:
 
         else:
             return None
+    
+    @staticmethod
+    def _check_if_title_page_element(line: Line, previousLine: Line, index: int) -> LineType:
         
-    def parseTitlePageLineTypeFor(self, line: Line, previousLine: Line, index: int) -> LineType:
+        if (previousLine is not None):
+            if not previousLine.isTitlePage():
+                return None
+        
+        # After the above block, previousLine should always be a title page element or None
+            
         key: str = line.getTitlePageKey()
-        
-        
+    
         if (len(key) > 0 and key != ""):
-            value: str = line.getTitlePageValue()
-            if (value == None):
-                value = ""
-            
-            ## Store title page data
-            titlePageData: dict = { key: [value] }
-            self.title_page.append(titlePageData) # NOTE: instead of holding the lines / title page elements / etc. in the parser instance, they should be stored in a Document Model instance
-            
-            ## Set this key as open (in case there are additional title page lines)
-            # self.openTitlePageKey = key # NOTE Don't know what this does yet
             
             match key:
                 case "title":
@@ -345,51 +357,23 @@ class StaticFountainParser:
                     return LineType.titlePageDraftDate
                 case _: 
                     return LineType.titlePageUnknown
+            
+        if (previousLine is not None):
+            prev_key: str = previousLine.getTitlePageKey()
+            if ( # wait... what is this block doing???
+                (len(prev_key) > 0)
+                or line.string.startswith("\t") 
+                or line.string.startswith(" "*3) 
+                ):
+                
+                return previousLine.type
 
-
-                    
-        elif (
-            previousLine is not None 
-            and len(self.title_page)> 0
-            ):
-            if (previousLine.isTitlePage()):
-                
-                key: str = ""
-                i: int = index -1
-                #old while loop ... not sure how it is different, am afraid to delete it until i understand it
-                '''while (i >= 0):
-                    pl: line = self.lines[i]
-                    if (len(pl.getTitlePageKey()) > 0):
-                        key = pl.getTitlePageKey()
-                        break
-                    
-                    i -= 1'''
-
-                
-                
-                key = previousLine.getTitlePageKey()
-
-                
-                print(str(previousLine.type).split("LineType."))
-                if (len(key) > 0 ):
-                    _dict = self.title_page[-1]
-                    if key in _dict.keys():
-                        _dict[key].append(line.string)
-                        return previousLine.type
-                        
-                elif line.string.startswith("\t") or line.string.startswith("   "):
-                    return previousLine.type
-                
-                    
-                    
-        else:   
-            return None
-    
-    def check_if_character(self, line: Line, nextLine: Line, twoLinesOver: Line, index: int,) -> LineType:
+    @staticmethod
+    def _check_if_character(line: Line, nextLine: Line, twoLinesOver: Line, index: int,) -> LineType:
         
         lastChar = line.string[-1:]
         if (
-            self.only_uppercase_until_parenthesis(line.string)
+            only_uppercase_until_parenthesis(line.string)
             and (not ''.join(line.string.split()) == "")
             ):
             ## A character line ending in ^ is a dual dialogue character
@@ -401,32 +385,31 @@ class StaticFountainParser:
                 ## Note the previous character cue that it's followed by dual dialogue
                 # self.makeCharacterAwareOfItsDualSiblingFrom(index)
                 return LineType.dualDialogueCharacter
-            else:
+            
                 ## It is possible that this IS NOT A CHARACTER but an all-caps action line
-                if twoLinesOver is not None:
-                    
-                    ## Next line is empty, line after that isn't - and we're not on that particular line
-                    if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
-                        return LineType.action
+            if twoLinesOver is not None:
+                
+                ## Next line is empty, line after that isn't - and we're not on that particular line
+                if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
+                    return LineType.action
+            
                         
                         
                        
             return LineType.character
         else:
             return None
-        
-    def check_if_empty_lines(self, line,) -> LineType:
+    
+    @staticmethod    
+    def _check_if_empty_lines(line) -> LineType:
         if (len(line.string) == 0):
-            
-                
-            #if self.check_if_dual_dialogue() is not None: # NOTE disabling this check for now, might put somewhere else
-                 #return self.check_if_dual_dialogue()
             
             return LineType.empty
         else:
             return None
-              
-    def check_if_dual_dialogue(self, line: Line, previousLine: Line = None, nextLine: Line = None,) -> LineType: 
+    
+    @staticmethod          
+    def _check_if_dual_dialogue(line: Line, previousLine: Line = None, nextLine: Line = None,) -> LineType: 
         if previousLine is not None:
             if (
                 previousLine.isDualDialogue()
