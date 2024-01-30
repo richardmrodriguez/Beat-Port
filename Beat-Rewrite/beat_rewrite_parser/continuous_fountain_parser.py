@@ -1143,7 +1143,7 @@ class ContinuousFountainParser:
                 ## Success, we found a closing string.
                 _range.length = i + delimLength - _range.location
 
-                for idx in rangeFromLocLen(_range):
+                for idx in _range_from_loc_len(_range):
                     indexSet.add(idx)
                 
                 ## Add the current formatting ranges to future excludes
@@ -1183,7 +1183,7 @@ class ContinuousFountainParser:
                 stars.add(i)
                 
                 _range.length = i - _range.location + fc.OMIT_PATTERN_LENGTH
-                indexSet.add(n for n in rangeFromLocLen(_range))
+                indexSet.add(n for n in _range_from_loc_len(_range))
                 
                 _range = loc_len(None, 0)
             

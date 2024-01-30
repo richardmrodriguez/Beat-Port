@@ -3,8 +3,6 @@ from static_fountain_parser import StaticFountainParser
 from line import Line, LineType
 from helper_dataclasses import LocationAndLength as loc_len
 
-
-
 # ITEMS:
     #0. DOING: Re-organize codebase to be more modular and workable
     #1. TODO: Finish Fountain Parsing
@@ -14,10 +12,8 @@ from helper_dataclasses import LocationAndLength as loc_len
 
 #1 - FOUNTAIN PARSING
     # TODO: Boneyards don't work yet.
-    # TODO: Dual Dialogue isn't checked yet.
-    # TODO: transitionLines in the official fountain spec assume "TO:" will end a line, 
-        # but this is oviously english centric.
-        # Converse with Lauri and others about how to solve this
+    # TODO: Notes don't work yet.
+
 #0 - CODE STRUCTURE
 # TODO: The Line class has a bunch of functions and stuff in it,
 # should probably separate into `LineData` and `LineFuncs`.
@@ -34,7 +30,7 @@ Source: Story by InnerSloth
 Draft date: 04 - 09 - 2024
 Contact: john@gaming.sus
 
-CUT TO:
+FADE IN:
 
 int. HOUSE - NIGHT
 
@@ -48,39 +44,52 @@ LADY
 (Screaming)
 Get out of my house, you demons!
 
+The lady swings a big sword,
+SLASHES,
+and destroys a perfectly good sofa.
+
 LADY 2^
 (Also Screaming)
 Yeah, get out!
 
 
-CUT TO:
+===
+# ACT 2
+## The Big Scaries
+
+ARBITRARY TRANSITION:
 
 INT. HOUSE - DAYTIME
+=This is the big moment.
 
 '''
 
 parser = StaticFountainParser()
+lines: list[Line] = []
 parsed_lines = parser.get_parsed_lines_from_raw_string(test_string)
 
-print("------------------------------------")
-def add_spacing(line_type_str: str):
+def add_spacing(line: Line):
     left_margin_spacing: int = 0
 
-    str_chara = str(LineType.character)
-    str_dial = str(LineType.dialogue)
-    str_parenthetical = str(LineType.parenthetical)
-
-    if line_type_str == str_chara:
+    if line.isAnyCharacter():
         left_margin_spacing = 20
-    elif line_type_str == str_dial:
+    elif line.isAnyDialogue():
         left_margin_spacing = 10
-    elif line_type_str == str_parenthetical:
+    elif line.isAnyParenthetical():
         left_margin_spacing = 15
     else:
         left_margin_spacing = 0
             
 
-    return (" "*left_margin_spacing) + ""
+    return (" "*left_margin_spacing)
+
+def pretty_print():
+    for line in parsed_lines:
+        print(add_spacing(line) + line.string)
+
+def print_title_page_elements(titlepage):
+    for e in titlepage:
+        print(e)
 
 
 def debug_print_lines_and_types():
@@ -88,17 +97,6 @@ def debug_print_lines_and_types():
         typestring = line.getTypeAsString()
         print(typestring.rjust(24) + " - " + line.string)
 
-        #print(add_spacing(str(line.type)) + line.string)
-        #print(line.string)
-    print("Test")
-
-debug_print_lines_and_types()
-
 print("------------------------------------")
-
-
-if LineType.empty == LineType.action:
-    print("It's fucking empty")
-
-# print(parsed_lines)
-#pretty_print_screenplay(parsed_lines)
+debug_print_lines_and_types()
+print("------------------------------------")
