@@ -380,7 +380,7 @@ class StaticFountainParser:
                     return LineType.action
 
             if previousLine is not None:
-                if line.type == LineType.character and previousLine.type != LineType.empty:
+                if previousLine.type != LineType.empty:
                     return LineType.action
             return LineType.character
         
