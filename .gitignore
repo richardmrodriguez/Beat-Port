@@ -1,3 +1,4 @@
 Beat-Rewrite/beat_rewrite_parser/__pycache__
 */__pycache__
+*.pyc
 /.venv
