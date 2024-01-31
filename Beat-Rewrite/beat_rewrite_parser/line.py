@@ -11,7 +11,6 @@
 # Each parsed line is represented by a `Line` object, which holds the string, formatting ranges and other metadata. 
 
 import uuid
-from enum import Enum, auto
 from dataclasses import dataclass
 
 from helper_funcs import *
@@ -54,7 +53,7 @@ class LineType:
     more =                          23   ### fake element for exporting
     dualDialogueMore =              24   ### fake element for exporting
     typeCount =                     25   ### This is the the max number of line types, used in `for` loops and enumerations, can be ignored
-        
+    unparsed =                      99   ### fake element for initalizing a list of unparsed `Line`s
     
 # TODO: determine if we can or should separate the Line class into two: LineBehavior and LineData class
 
@@ -68,6 +67,8 @@ class Line:
     originalString: str
     ### Position (starting index) )in document
     position: int
+    ### Length of string
+    length: int
 
     ### If the line is an outline element (section/heading) this value contains the section depth
     section_depth: int
@@ -92,9 +93,6 @@ class Line:
     BeatFormattingKeyBoldItalic = "BeatBoldItalic"
     BeatFormattingKeyUnderline = "BeatUnderline"
 
-    string: str
-    type: LineType
-    position: int
     formattedAs: any
     parser: any
     
@@ -107,17 +105,17 @@ class Line:
     omittedRanges: set
     escapeRanges: set
     removalSuggestionRanges: set
-    _uuid: uuid.uuid4()
+    _uuid: uuid
     
     originalString: str
 
     #pragma mark - Initialization
 
     def __init__(self, 
-                       string: str = "", 
-                       position: int = 0, 
-                       parser: any = None, # parser takes in a type of LineDelegate ?
-                       type: any = LineType.empty, # this is wrong, this is not how type hinting should work
+                       string: str, 
+                       position: int, 
+                       #parser: any = None, # parser takes in a type of LineDelegate ?
+                       type: LineType, # this is wrong, this is not how type hinting should work
                        ): 
 
         if string is None:
@@ -127,7 +125,6 @@ class Line:
         self.type = type
         self.position = position
         self.formattedAs = -1
-        self.parser = parser
         
         self.boldRanges = set()
         self.italicRanges = set()
@@ -141,8 +138,10 @@ class Line:
         self._uuid = uuid.uuid4()
         
         self.originalString = string
-        
-        # return self
+
+    def get_loc_len(self):
+        _loc_len = loc_len(self.position, len(self.string))
+        return _loc_len
     
 
     def numberOfPrecedingFormattingCharacters(self) -> int:
@@ -153,7 +152,7 @@ class Line:
         c: str = self.string[0]
         
         ## Check if this is a shot
-        if (self.string.length > 1 and c == '!'):
+        if (len(self.string) > 1 and c == '!'):
             c2: str = self.string[1]
             if (type == LineType.shot and c2 == '!'):
                 return 2
@@ -175,37 +174,13 @@ class Line:
         
         
         return 0
-    
-
-    '''### Use this ONLY for creating temporary lines while paginating.
-    def Line*)initWithString:(NSString *)string type:(LineType)type pageSplit:(bool)pageSplit {
-        self = [super init]
-        if (self) {
-            _string = string
-            _type = type
-            _unsafeForPageBreak = True
-            _formattedAs = -1
-            _uuid = NSUUID.UUID
-            _nextElementIsDualDialogue = False
-            
-            _beginsNewParagraph = False
-            
-            if (pageSplit) [self resetFormatting]
-        }
-        return self
-    }'''
  
     #pragma mark - Shorthands  --- BACKBURNER
 
-    '''
-
-    ### Use this ONLY for creating temporary lines while paginating
-    def withString(self, string: str, type: LineType, pageSplit: bool):
-        return self.initWithString(string=string, type=type, pageSplit=True)
     
     # why this function?
     def markupCharacters() -> list:
-        return [".", "@", "~", "!"]'''
+        return [".", "@", "~", "!"]
     
 
     #pragma mark - Type
@@ -406,12 +381,7 @@ class Line:
 
     #pragma mark - Thread-safe getters --- BACKBURNER --- COMPREHENSION ISSUE
 
-    '''### Length of the string
-    def length() -> int:
-        @synchronized (self.string) {
-            return self.string.length
-        }
-    
+    '''
 
     ### Range for the full line (incl. line break)
     -(NSRange)range
@@ -460,111 +430,20 @@ class Line:
             [line.omittedRanges removeAllIndexes]
             return [line.stripFormatting stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]
         
-    
 
-    ### @warning Legacy method. Use `line.stripFormatting`
-    def NSString*)textContent {
-        return self.stripFormatting
-    }
-
-    ### Returns the last character as `unichar`
-    # -- deleted --
-
+    '''
     ### Returns `true` if the stored original content is equal to current string
     def matchesOriginal(self) -> bool:
-        return self.string == self.originalString'''
+        return self.string == self.originalString
     
 
-    #pragma mark - Strip formatting --- BACKBURNER --- SHIFT RESPONSIBILITY
+    #pragma mark - Strip formatting --- BACKBURNER
 
-    ### Strip any Fountain formatting from the line
-    ### ## Strip any Fountain formatting from the line
-    '''
+    ### Return a version of the Line without any Fountain formatting
     def stripFormatting(self) -> str:
         return self.stripFormattingWithSettings(None)
     
-    def stripFormattingWithSettings(self, settings: BeatExportSettings) -> str:
     
-        contentRanges: list = self.contentRanges
-        if (settings.printNotes):
-            contentRanges.append(self.noteRanges)# ?? syntax hurty
-
-        __block NSMutableString *content = NSMutableString.string ## ?? syntax hurty
-        macros: list = self.resolvedMacros
-        
-        [contentRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            ## Let's make sure we don't have bad data here (can happen in some multithreaded instances)
-            if (NSMaxRange(range) > self.string.length) {
-                range.length = self.string.length - NSMaxRange(range)
-                if (range.length <= 0) return
-            }
-            
-            strippedContent: str = ""
-
-            ## We need to replace macros. This is a more efficient way than using attributed strings.
-            for (NSValue *macroRange in macros) {
-                NSRange replacementRange = macroRange.rangeValue
-                NSString *macroValue = macros[macroRange]
-                
-                ## Check if the replacement range intersects with the current range
-                NSRange intersectionRange = NSIntersectionRange(range, replacementRange)
-                
-                if (intersectionRange.length > 0) {
-                    ## There is an intersection, so replace the intersecting part with the replacement string
-                    if (intersectionRange.location > range.location) {
-                        NSRange prefixRange = NSMakeRange(range.location, intersectionRange.location - range.location)
-                        [strippedContent appendString:[self.string substringWithRange:prefixRange]]
-                    }
-                    
-                    [strippedContent appendString:macroValue]
-                    
-                    ## Update the range for the next iteration
-                    NSInteger remainder = NSMaxRange(range) - NSMaxRange(intersectionRange)
-                    range.location = NSMaxRange(intersectionRange)
-                    range.length = remainder
-                }
-            }
-            
-            ## Append any remaining content after replacements
-            if (range.location < NSMaxRange(_range)):
-                remainingRange: range = NSMakeRange(range.location, NSMaxRange(range) - range.location)
-                strippedContent += self.string[:remainingRange] # NOTE: syntax hurty: RANGE
-            
-            
-            [content appendString:strippedContent]
-        }]
-        
-        return content
-    
-
-    ### Returns a string with notes removed
-    def stripNotes() -> str:
-        __block NSMutableString *string = [NSMutableString stringWithString:self.string]
-        __block NSUInteger offset = 0
-        
-        [self.noteRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.location - offset + range.length > string.length) {
-                range = NSMakeRange(range.location, string.length - range.location - offset)
-            }
-            
-            @try {
-                [string replaceCharactersInRange:NSMakeRange(range.location - offset, range.length) withString:@""]
-            }
-            @catch (NSException* exception) {
-                NSLog(@"cleaning out of range: %@ / (%lu, %lu) / offset %lu", self.string, range.location, range.length, offset)
-            }
-            @finally {
-                offset += range.length
-            }
-        }]
-        
-        return string
-    
-
-    ### Returns a string with the scene number stripped
-    def stripSceneNumber(self) -> str:
-        result: str = [self.string stringByReplacingOccurrencesOfString:[NSString stringWithFormat:@"#%@#", self.sceneNumber] withString:@"" options:NSCaseInsensitiveSearch range:NSMakeRange(0, self.string.length)]
-        return [result stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]'''
     
     #pragma mark - Element booleans
     
@@ -665,8 +544,9 @@ class Line:
     ## What a silly mess. TODO: Please fix this.
 
     ### Returns `true` for ACTUALLY omitted lines, so not only for effectively omitted. This is a silly thing for legacy compatibility.
-    '''def isOmitted(self) -> bool:
-        return (self.omittedRanges.count >= self.string.length)
+    def isOmitted(self) -> bool:
+        return (self.omittedRanges.count >= len(self.string))
+    '''
     
 
     ### Returns `true` if the line is omitted, kind of. This is a silly mess because of historical reasons.
@@ -841,7 +721,7 @@ class Line:
         self.section_depth = depth
         return depth
 
-    #pragma mark - Story beats --- BACKBURNER
+    #pragma mark - Story beats --- BACKBURNER --- SHIFT RESPONSIBILITY
 
     '''def beats(self) -> list[Storybeat]:
         _beatRanges: list = []
@@ -917,7 +797,8 @@ class Line:
             }
         }]
         
-        return beatRange'''
+        return beatRange
+    '''
     
     #pragma mark - Formatting & attribution --- BACKBURNER --- SHIFT RESPONSIBILITY
 
@@ -969,230 +850,6 @@ class Line:
             return
         }'''
         
-    # NOTE: a bunch of AttributedString related funcs, not going to deal with any of that unitl absolutely necessary
-    ### Converts an FDX-style attributed string back to Fountain
-    '''def NSString*)attributedStringToFountain:(NSAttributedString*)attrStr
-    {
-        ## NOTE! This only works with the FDX attributed string
-        NSMutableString *result = NSMutableString.string
-        
-        __block NSInteger pos = 0
-        
-        [attrStr enumerateAttributesInRange:(NSRange){0, attrStr.length} options:0 usingBlock:^(NSDictionary<NSAttributedStringKey,id> * _Nonnull attrs, NSRange range, BOOL * _Nonnull stop) {
-            NSString *string = [attrStr attributedSubstringFromRange:range].string
-                    
-            NSMutableString *open = [NSMutableString stringWithString:@""]
-            NSMutableString *close = [NSMutableString stringWithString:@""]
-            NSMutableString *openClose = [NSMutableString stringWithString:@""]
-            
-            NSSet *styles = attrs[@"Style"]
-            
-            if ([styles containsObject:BOLD_STYLE]) [openClose appendString:BOLD_PATTERN]
-            if ([styles containsObject:ITALIC_STYLE]) [openClose appendString:ITALIC_PATTERN]
-            if ([styles containsObject:UNDERLINE_STYLE]) [openClose appendString:UNDERLINE_PATTERN]
-            if ([styles containsObject:NOTE_STYLE]) {
-                [open appendString:[NSString stringWithFormat:@"%s", NOTE_OPEN_CHAR]]
-                [close appendString:[NSString stringWithFormat:@"%s", NOTE_CLOSE_CHAR]]
-            }
-                            
-            [result appendString:open]
-            [result appendString:openClose]
-            [result appendString:string]
-            [result appendString:openClose]
-            [result appendString:close]
-
-            pos += open.length + openClose.length + string.length + openClose.length + close.length
-        }]
-        
-        return [result stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]
-    }
-
-    ### Creates and stores a string with style attributes. Please don't use in editor, only for static parsing.
-    ### - note N.B. This is NOT a Cocoa-compatible attributed string. The attributes are used to create a string for screenplay rendering or FDX export.
-    def NSAttributedString*)attrString
-    {
-        if (_attrString == nil) {
-            NSAttributedString *string = [self attributedStringForFDX]
-            NSMutableAttributedString *result = NSMutableAttributedString.new
-            
-            [self.contentRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-                [result appendAttributedString:[string attributedSubstringFromRange:range]]
-            }]
-            
-            _attrString = result
-        }
-        
-        return _attrString
-    }
-
-    def NSAttributedString*)attributedStringForFDX
-    {
-        return [self attributedString]
-    }
-
-    ### Returns a string with style attributes.
-    ### - note N.B. Does NOT return a Cocoa-compatible attributed string. The attributes are used to create a string for screenplay rendering or FDX export.
-    def NSAttributedString*)attributedString
-    {
-        NSMutableAttributedString *string = [[NSMutableAttributedString alloc] initWithString:(self.string) ? self.string : @""]
-            
-        ## Make (forced) character names uppercase
-        if (self.type == character or self.type == dualDialogueCharacter) {
-            NSString *name = [self.string substringWithRange:self.characterNameRange].uppercaseString
-            if (name) [string replaceCharactersInRange:self.characterNameRange withString:name]
-        }
-        
-        ## Add font stylization
-        [self.italicRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length > ITALIC_PATTERN.length * 2) {
-                if ([self rangeInStringRange:range]) [self addStyleAttr:ITALIC_STYLE toString:string range:range]
-            }
-        }]
-
-        [self.boldRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length > BOLD_PATTERN.length * 2) {
-                if ([self rangeInStringRange:range]) [self addStyleAttr:BOLD_STYLE toString:string range:range]
-            }
-        }]
-        
-        [self.boldItalicRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length > ITALIC_PATTERN.length * 2) {
-                if ([self rangeInStringRange:range]) [self addStyleAttr:BOLDITALIC_STYLE toString:string range:range]
-            }
-        }]
-        
-        [self.underlinedRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length > UNDERLINE_PATTERN.length * 2) {
-                if ([self rangeInStringRange:range]) [self addStyleAttr:UNDERLINE_STYLE toString:string range:range]
-            }
-        }]
-            
-        [self.omittedRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length > OMIT_PATTERN.length * 2) {
-                if ([self rangeInStringRange:range]) [self addStyleAttr:OMIT_STYLE toString:string range:range]
-            }
-        }]
-        
-        [self.noteRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length > NOTE_PATTERN.length * 2) {
-                if ([self rangeInStringRange:range]) [self addStyleAttr:NOTE_STYLE toString:string range:range]
-            }
-        }]
-
-        [self.escapeRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if ([self rangeInStringRange:range]) [self addStyleAttr:OMIT_STYLE toString:string range:range]
-        }]
-            
-        [self.removalSuggestionRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if ([self rangeInStringRange:range]) [self addStyleAttr:@"RemovalSuggestion" toString:string range:range]
-        }]
-            
-        ## Add macro attributes
-        if (self.macroRanges.count > 0) {
-            for (NSValue* r in self.macros.allKeys) {
-                NSString* resolvedMacro = self.resolvedMacros[r]
-                
-                NSRange range = r.rangeValue
-                [string addAttribute:@"Macro" value:(resolvedMacro) ? resolvedMacro : @"" range:range]
-            }
-        }
-        
-        if (self.revisedRanges.count) {
-            for (NSString *key in _revisedRanges.allKeys) {
-                [_revisedRanges[key] enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-                    if ([self rangeInStringRange:range]) {
-                        [string addAttribute:@"Revision" value:key range:range]
-                    }
-                }]
-            }
-        }
-        
-        ## Loop through tags and apply
-        for (NSDictionary *tag in self.tags) {
-            NSString* tagValue = tag[@"tag"]
-            if (!tagValue) continue
-            
-            NSRange range = [(NSValue*)tag[@"range"] rangeValue]
-            [string addAttribute:@"BeatTag" value:tagValue range:range]
-        }
-        
-        return string
-    }
-
-    ### N.B. Does NOT return a Cocoa-compatible attributed string. The attributes are used to create a string for FDX/HTML conversion.
-    def void)addStyleAttr:(NSString*)name toString:(NSMutableAttributedString*)string range:(NSRange)range
-    {
-        if (name == nil) NSLog(@"WARNING: Null value passed to attributes")
-        
-        ## We are going out of range. Abort.
-        if (range.location + range.length > string.length or range.length < 1 or range.location == NSNotFound) return
-        
-        ## Make a copy and enumerate attributes.
-        ## Add style to the corresponding range while retaining the existing attributes, if applicable.
-        [string.copy enumerateAttributesInRange:range options:0 usingBlock:^(NSDictionary<NSAttributedStringKey,id> * _Nonnull attrs, NSRange range, BOOL * _Nonnull stop) {
-            NSMutableSet* style
-            if (attrs[@"Style"] != nil) {
-                ## We need to make a copy of the set, otherwise we'll add to the same set of attributes as earlier, causing issues with overlapping attributes.
-                style = ((NSMutableSet*)attrs[@"Style"]).mutableCopy
-                [style addObject:name]
-            } else {
-                style = [NSMutableSet.alloc initWithArray:@[name]]
-            }
-            
-            [string addAttribute:@"Style" value:style range:range]
-        }]
-    }
-
-    def NSAttributedString*)attributedStringWithMacros
-    {
-        NSMutableAttributedString* string = [NSMutableAttributedString.alloc initWithString:self.string]
-        ## Add macro attributes
-        for (NSValue* r in self.macros) {
-            NSRange range = r.rangeValue
-            NSString* resolvedMacro = self.resolvedMacros[r]
-            
-            [string addAttribute:@"Macro" value:(resolvedMacro) ? resolvedMacro : @"" range:range]
-        }
-        return string
-    }
-
-    ### Returns an attributed string without formatting markup
-    def NSAttributedString*)attributedStringForOutputWith:(BeatExportSettings*)settings
-    {
-        ## First create a standard attributed string with the style attributes in place
-        NSMutableAttributedString* attrStr = self.attributedString.mutableCopy
-        
-        ## Set up an index set for each index we want to include.
-        NSMutableIndexSet* includedRanges = NSMutableIndexSet.new
-        ## If we're printing notes, let's include those in the ranges
-        if (settings.printNotes) [includedRanges addIndexes:self.noteRanges]
-        
-        ## Create actual content ranges
-        NSMutableIndexSet* contentRanges = [self contentRangesIncluding:includedRanges].mutableCopy
-        
-        ## Enumerate visible ranges and build up the resulting string
-        NSMutableAttributedString* result = NSMutableAttributedString.new
-        [contentRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            if (range.length == 0) return
-            
-            NSAttributedString* content = [attrStr attributedSubstringFromRange:range]
-            [result appendAttributedString:content]
-            
-            ## To ensure we can map the resulting attributed string *back* to the editor ranges, we'll mark the ranges they represent. This is an experimental part of the possible upcoming more WYSIWYG-like experience.
-            NSRange editorRange = NSMakeRange(range.location, range.length)
-            [result addAttribute:@"BeatEditorRange" value:[NSValue valueWithRange:editorRange] range:NSMakeRange(result.length-range.length, range.length)]
-        }]
-        
-        ## Replace macro ranges. All macros should be resolved by now.
-        [result.copy enumerateAttribute:@"Macro" inRange:NSMakeRange(0,result.length) options:NSAttributedStringEnumerationReverse usingBlock:^(id  _Nullable value, NSRange range, BOOL * _Nonnull stop) {
-            if (value == nil) return
-            NSDictionary* attrs = [result attributesAtIndex:range.location effectiveRange:nil]
-            NSAttributedString* resolved = [NSAttributedString.alloc initWithString:value attributes:attrs]
-            [result replaceCharactersInRange:range withAttributedString:resolved]
-        }]
-            
-        return result
-    }'''
 
     #pragma mark - Splitting --- BACKBURNER --- SHIFT RESPONSIBILITY
 
@@ -1219,7 +876,7 @@ class Line:
     # attributed string for output.
     
 
-    '''def NSArray<Line*>*)splitAndFormatToFountainAt:(NSInteger)index {
+    '''def splitAndFormatToFountainAt(index: int) -> list[Line]
         NSAttributedString *string = [self attributedStringForFDX]
         NSMutableAttributedString *attrStr = NSMutableAttributedString.new
         
@@ -1322,27 +979,10 @@ class Line:
         }
         
         return @[ retain, split ]
-    }'''
+    '''
 
     #pragma mark - Formatting helpers --- BACKBURNER
 
-    ### What is this? Seems like a more sensible attributed string idea.
-    '''def NSAttributedString*)formattingAttributes
-    {
-        NSMutableAttributedString* attrStr = [NSMutableAttributedString.alloc initWithString:self.string]
-        
-        [self.italicRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            [attrStr addAttribute:BeatFormattingKeyItalic value:@True range:range]
-        }]
-        [self.boldRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            [attrStr addAttribute:BeatFormattingKeyBold value:@True range:range]
-        }]
-        [self.underlinedRanges enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
-            [attrStr addAttribute:BeatFormattingKeyUnderline value:@True range:range]
-        }]
-        
-        return attrStr
-    }'''
 
     #pragma mark Formatting range lookup --- BACKBURNER
 
@@ -1581,15 +1221,17 @@ class Line:
             return (NSRange){ 0, parenthesisLoc }
         }
     }
-    def hasExtension {
+    '''
+    def hasExtension(self) -> bool:
         ### Returns  `TRUE` if the character cue has an extension
-        if (!self.isAnyCharacter) return False
-        
-        NSInteger parenthesisLoc = [self.string rangeOfString:@"("].location
-        if (parenthesisLoc == NSNotFound) return False
-        else return True
-    }
+        if not self.isAnyCharacter:
+            return False
+        if "(" not in self.string:
+            return False
+        return True
+    
 
+    '''
     ### Ranges of emojis (o the times we live in)
     def NSArray<NSValue*>*)emojiRanges {
         return self.string.emo_emojiRanges
@@ -1667,29 +1309,34 @@ class Line:
         }
     }
 
-    def NSString*)characterName
-    {
+    def characterName(self) -> str:
+    
         ## This removes any extensions from character name, ie. (V.O.), (CONT'D) etc.
         ## We'll allow the method to run for lines under 4 characters, even if not parsed as character cues
         ## (update in 2022: why do we do this, past me?)
-        if ((self.type != character and self.type != dualDialogueCharacter) and self.string.length > 3) return nil
+        if ((self.type != LineType.character and self.type != LineType.dualDialogueCharacter) and len(self.string)> 3):
+            return None
         
         ## Strip formatting (such as symbols for forcing element types)
-        NSString *name = self.stripFormatting
-        if (name.length == 0) return @""
+        # name: str = self.stripFormatting() commenting out for testing
+        name: str = self.string.strip()
+        if (len(name) == 0):
+            return ""
             
         ## Find and remove suffix
-        NSRange suffixRange = [name rangeOfString:@"("]
-        if (suffixRange.location != NSNotFound and suffixRange.location > 0) name = [name substringWithRange:(NSRange){0, suffixRange.location}]
+        if "(" in name:
+            suffixRange: loc_len = name.index("(")
+            if (suffixRange.location != None and suffixRange.location > 0):
+                name = name[:suffixRange.location]
         
         ## Remove dual dialogue character if needed
-        if (self.type == dualDialogueCharacter and [name characterAtIndex:name.length-1] == '^') {
-            name = [name substringToIndex:name.length - 1]
-        }
+        if (self.type == LineType.dualDialogueCharacter and name[name.length-1] == '^'):
+            name = name[:name.length - 1]
         
-        return [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]
-    }
+        
+        return name.strip()
     '''
+    
     def getTitlePageKey(self,) -> str:
         if (len(self.string) == 0):
             return ""
@@ -1718,13 +1365,13 @@ class Line:
         else:
             return ""
     
-    '''
     ### Returns `true` for lines which should effectively be considered as empty when parsing.
-    def effectivelyEmpty {
+    '''
+    def effectivelyEmpty:
         if (self.type == empty or self.length == 0 or self.opensOrClosesOmission or self.type == section or self.type == synopse ||
             (self.string.containsOnlyWhitespace and self.string.length == 1)) return True
         else return False
-    }
+    
 
     def opensOrClosesOmission {
         NSString *trimmed = [self.string stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]

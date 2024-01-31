@@ -1,4 +1,3 @@
-##
 ##  static_fountain_parser.py
 ##  Beat
 ##
@@ -71,8 +70,6 @@ class StaticFountainParser:
 
         return unparsed_lines
 
-
-
     ### Parses the line type for given line. It *has* to know its line index.
     @classmethod
     def _parse_line_type_for(cls, lines: list[Line], index: int) -> LineType:
@@ -133,8 +130,7 @@ class StaticFountainParser:
         if transition_result is not None:
             return transition_result
         
-        
-        # Handle items which require an empty line before them.
+            # Handle items which require an empty line before them.
             
         ## --------- Heading
         heading_result: LineType  = cls._check_if_heading(
@@ -183,11 +179,9 @@ class StaticFountainParser:
         if (
             until_parenthesis == until_parenthesis.upper()
             and len(until_parenthesis) > 0
-            
             ):
             return True
-        else:
-            return False
+        return False
         
     # ---------- Parsing sub-functions ---------- 
     @staticmethod
@@ -199,51 +193,52 @@ class StaticFountainParser:
             and previousIsEmpty
             ):
             return LineType.transitionLine
-        else:
-            return None
+        
+        return None
     
     @staticmethod    
     def _check_if_dialogue_or_parenthetical(line: Line, previousLine: Line):
-        if previousLine is not None:
-            if (
-                previousLine.isDialogue()
-                and len(previousLine.string) > 0
-                ):
-                if (line.string[:1] == '(' ): 
-                    return LineType.parenthetical 
-                return LineType.dialogue
-            
-            if previousLine.type == LineType.parenthetical:
-                return LineType.dialogue
-        else:
+        if previousLine is None:
             return None
-    
+        
+        if (
+            previousLine.isDialogue()
+            and len(previousLine.string) > 0
+            ):
+            if (line.string[:1] == '(' ): 
+                return LineType.parenthetical 
+            return LineType.dialogue
+        
+        if previousLine.type == LineType.parenthetical:
+            return LineType.dialogue
+        
     @staticmethod
     def _check_if_heading(line: Line, previousIsEmpty: bool):
 
-        if (previousIsEmpty
+        if not (previousIsEmpty
               and len(line.string)>= 3 
               ):
-            firstChars: str = line.string[:3].lower()
-            if (firstChars == "int" or
-                firstChars == "ext" or
-                firstChars == "est" or
-                firstChars == "i/e"):
-                
-                ## If it's just under 4 characters, return heading
-                if (len(line.string) == 3):
-                    return LineType.heading
-                else:
-                    ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
-                    nextChar: str = line.string[3]
-                    if (nextChar == '.' 
-                        or nextChar == ' ' 
-                        or nextChar == '/'):
-
-                        return LineType.heading
-        else:
             return None
-    
+        
+        firstChars: str = line.string[:3].lower()
+        if not (firstChars == "int" or
+            firstChars == "ext" or
+            firstChars == "est" or
+            firstChars == "i/e"):
+            return None
+            
+        ## If it's just under 4 characters, return heading
+        if (len(line.string) == 3):
+            return LineType.heading
+        
+        ## To avoid words like "international" from becoming headings, the extension HAS to end with either dot, space or slash
+        nextChar: str = line.string[3]
+        if (nextChar == '.' 
+            or nextChar == ' ' 
+            or nextChar == '/'):
+
+            return LineType.heading
+       
     @staticmethod    
     def _check_if_forced_element(line: Line, previousIsEmpty: bool) -> LineType:
         
@@ -346,7 +341,7 @@ class StaticFountainParser:
             
         if (previousLine is not None):
             prev_key: str = previousLine.getTitlePageKey()
-            if ( # wait... what is this block doing???
+            if (
                 (len(prev_key) > 0)
                 or line.string.startswith("\t") 
                 or line.string.startswith(" "*3) 
@@ -357,36 +352,28 @@ class StaticFountainParser:
     @staticmethod
     def _check_if_character(line: Line, nextLine: Line, twoLinesOver: Line, index: int, previousLine: Line) -> LineType:
         
-        lastChar = line.string[-1:]
-        if (
-            hf.only_uppercase_until_parenthesis(line.string)
-            and line.string != ""
-            ):
-            ## A character line ending in ^ is a dual dialogue character
-            ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
-            #if list(line.noteRanges) != []:
-                #if sorted(list(line.noteRanges))[0] != 0: # get first ordered numerical value in noteRanges? #NOTE: Not 100% sure what this condition is tbh
-            if (ord(lastChar) == 94):
-            
-                ## Note the previous character cue that it's followed by dual dialogue
-                # self.makeCharacterAwareOfItsDualSiblingFrom(index)
-                return LineType.dualDialogueCharacter
-            
-                ## It is possible that this IS NOT A CHARACTER but an all-caps action line
-            if twoLinesOver is not None:
-                
-                ## Next line is empty, line after that isn't - and we're not on that particular line
-                if ((len(nextLine.string) == 0 and len(twoLinesOver.string) > 0)):
-                    return LineType.action
-
-            if previousLine is not None:
-                if previousLine.type != LineType.empty:
-                    return LineType.action
-            return LineType.character
-        
-        else:
+        if not (hf.only_uppercase_until_parenthesis(line.string) and line.string != ""):
             return None
-    
+        
+        
+        lastChar = line.string[-1:]
+        ## A character line ending in ^ is a dual dialogue character
+        ## (94 = ^, we'll compare the numerical value to avoid mistaking Tuskic alphabet character Ş as ^)
+        #if list(line.noteRanges) != []:
+            #if sorted(list(line.noteRanges))[0] != 0: # get first ordered numerical value in noteRanges? #NOTE: Not 100% sure what this condition is tbh
+        if (ord(lastChar) == 94):
+        
+            ## Note the previous character cue that it's followed by dual dialogue
+            # self.makeCharacterAwareOfItsDualSiblingFrom(index) #NOTE: Does the parser need to be responsible for this?
+            return LineType.dualDialogueCharacter
+
+        # Check if this line is actually just an ALLCAPS action line
+        if previousLine is not None:
+            if previousLine.type != LineType.empty:
+                return LineType.action
+        
+        return LineType.character
+        
     @staticmethod    
     def _check_if_empty_lines(line: Line) -> LineType:
         

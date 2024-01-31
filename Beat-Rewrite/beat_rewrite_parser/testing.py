@@ -1,7 +1,9 @@
 from continuous_fountain_parser import ContinuousFountainParser
 from static_fountain_parser import StaticFountainParser
+from static_post_parser import StaticPostParser
 from line import Line, LineType
 from helper_dataclasses import LocationAndLength as loc_len
+from parser_data_classes.formatting_characters import FormattingCharacters as fc
 
 # ITEMS:
     #0. DOING: Re-organize codebase to be more modular and workable
@@ -51,12 +53,12 @@ and destroys a perfectly good sofa.
 LADY 2^
 (Also Screaming)
 Yeah, get out!
-
+[[This is a note.]]
 
 ===
 # ACT 2
 ## The Big Scaries
-
+[[Another note here!]]
 ARBITRARY TRANSITION:
 
 INT. HOUSE - DAYTIME
@@ -91,7 +93,6 @@ def print_title_page_elements(titlepage):
     for e in titlepage:
         print(e)
 
-
 def debug_print_lines_and_types():
     for line in parsed_lines:
         typestring = line.getTypeAsString()
@@ -100,3 +101,9 @@ def debug_print_lines_and_types():
 print("------------------------------------")
 debug_print_lines_and_types()
 print("------------------------------------")
+
+open, close = StaticPostParser.get_open_and_close_index_sets_from_document_string(test_string, 
+                                                           open_pattern="\[\[", 
+                                                           close_pattern="\]\]"
+                                                           )
+print("Open indexes:", open, "\n" + "Close indexes:", close)
