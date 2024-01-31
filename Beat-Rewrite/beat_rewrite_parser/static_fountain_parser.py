@@ -205,6 +205,8 @@ class StaticFountainParser:
     
     @staticmethod    
     def _check_if_dialogue_or_parenthetical(line: Line, previousLine: Line):
+        if line.string.startswith("  "):
+            print("Non empty line here!")
         if previousLine is None:
             return None
         
@@ -217,6 +219,9 @@ class StaticFountainParser:
             return LineType.dialogue
         
         if previousLine.type == LineType.parenthetical:
+            return LineType.dialogue
+        
+        if line.string.startswith("  "):
             return LineType.dialogue
         
     @staticmethod
@@ -362,6 +367,9 @@ class StaticFountainParser:
         if not (hf.only_uppercase_until_parenthesis(line.string) and line.string != ""):
             return None
         
+        if line.string != line.string.strip():
+            if line.string.startswith("  "):
+                return None
         
         lastChar = line.string[-1:]
         ## A character line ending in ^ is a dual dialogue character
@@ -390,12 +398,12 @@ class StaticFountainParser:
             return None
     
     @staticmethod          
-    def _check_if_dual_dialogue(line: Line, previousLine: Line = None, nextLine: Line = None,) -> LineType: 
+    def _check_if_dual_dialogue(line: Line, previousLine: Line, nextLine: Line = None,) -> LineType: 
         if previousLine is not None:
             if (
                 previousLine.isDualDialogue()
                 ):
-                print(previousLine.type, LineType.dualDialogue)
+                
                 if line.string[0] == "(":
                     return LineType.dualDialogueParenthetical
                 else:
