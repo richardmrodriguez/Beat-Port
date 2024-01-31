@@ -48,9 +48,16 @@ class StaticFountainParser:
     def _get_parsed_lines_from_line_array(cls, lines: list[Line]):
         # the actual parsing
         index: int = 0
-        for l in lines:
+        for l in range(len(lines)):
+            line = lines[l]
             print("Index", index)
-            l.type = cls._parse_line_type_for(lines, index)
+            line.type = cls._parse_line_type_for(lines, index)
+            # Check if previous line is supposed to actually be just action (Characters need 1 empty line before and 1 NON-empty line after)
+            if line.type == LineType.empty:
+                if l-1 in range(len(lines)):
+                    prev = lines[l-1]
+                    if prev.type == LineType.character:
+                        prev.type = LineType.action
             index += 1
         return lines
 
